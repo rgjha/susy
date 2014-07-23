@@ -18,7 +18,7 @@
 #define LAMBDA_MID 0.614
 
 // RHMC degree -- copied to Norder, which can be reset (e.g., to 1)
-#define DEGREE 15
+#define DEGREE 6
 // -----------------------------------------------------------------
 
 
@@ -42,6 +42,9 @@
 
 // Tunable parameter in gauge action
 #define C2 1.0
+
+// Factor on Q-closed term
+#define CQ 2.0
 // -----------------------------------------------------------------
 
 

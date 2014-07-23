@@ -121,7 +121,7 @@ void assemble_fermion_force(Twist_Fermion *sol, Twist_Fermion *psol) {
   register site *s;
   char **local_pt[2][4];
   int mu, nu, a, b, c, d, e, l, m, counter, gather, next, flip = 0;
-  Real permm, BC;
+  Real permm, BC, negCQov2 = -0.5 * CQ;
   complex cterm;
   msg_tag *mtag[NUMLINK], *tag0[2], *tag1[2], *tag2[2], *tag3[2];
   msg_tag *mtag0 = NULL, *mtag1 = NULL;
@@ -411,7 +411,7 @@ void assemble_fermion_force(Twist_Fermion *sol, Twist_Fermion *psol) {
     // Reproduces f_U.set(x, c, f_U.get(x, c) - 0.5 * Adj(tmp));
     FORALLSITES(i, s) {
       su3_adjoint_f(&(tempmat[i]), &tmpmat);
-      scalar_mult_add_su3_matrix_f(&(s->f_U[c]), &tmpmat, -0.5, &(s->f_U[c]));
+      scalar_mult_add_su3_matrix_f(&(s->f_U[c]), &tmpmat, negCQov2, &(s->f_U[c]));
     }
   }
 
@@ -502,7 +502,8 @@ void assemble_fermion_force(Twist_Fermion *sol, Twist_Fermion *psol) {
     // Reproduces f_U.set(x, c, f_U.get(x, c) - 0.5 * Adj(tmp));
     FORALLSITES(i, s) {
       su3_adjoint_f(&(tempmat[i]), &tmpmat);
-      scalar_mult_add_su3_matrix_f(&(s->f_U[c]), &tmpmat, -0.5, &(s->f_U[c]));
+      scalar_mult_add_su3_matrix_f(&(s->f_U[c]), &tmpmat, negCQov2,
+                                   &(s->f_U[c]));
     }
   }
 #endif

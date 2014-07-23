@@ -89,6 +89,7 @@ void fermion_op(Twist_Fermion *src, Twist_Fermion *dest, int sign) {
   register int i, j;
   register site *s;
   int mu, nu;
+  Real CQov2 = 0.5 * CQ;
   Twist_Fermion tf;
 
   // Copy src TwistFermion into fieldwise site, link and plaq fermions
@@ -168,7 +169,7 @@ void fermion_op(Twist_Fermion *src, Twist_Fermion *dest, int sign) {
         FORALLSITES(i, s)
           scalar_mult_add_su3_vector(&(plaq_dest[mu][nu][i]),
                                      &(plaq_dest2[mu][nu][i]),
-                                     0.5, &(plaq_dest[mu][nu][i]));
+                                     CQov2, &(plaq_dest[mu][nu][i]));
       }
     }
     DbplusPtoP(plaq_src, plaq_dest2);    // Overwrites plaq_dest2 for nu != mu
@@ -177,7 +178,7 @@ void fermion_op(Twist_Fermion *src, Twist_Fermion *dest, int sign) {
         FORALLSITES(i, s) {
           scalar_mult_add_su3_vector(&(plaq_dest[mu][nu][i]),
                                      &(plaq_dest2[mu][nu][i]),
-                                     0.5, &(plaq_dest[mu][nu][i]));
+                                     CQov2, &(plaq_dest[mu][nu][i]));
 
           for (j = 0; j < DIMF; j++)
             CNEGATE(plaq_dest[mu][nu][i].c[j], plaq_dest[nu][mu][i].c[j]);
