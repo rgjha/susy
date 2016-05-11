@@ -13,6 +13,7 @@
 void bilinear_src(Twist_Fermion *g_rand, Twist_Fermion *src, int N) {
   register int i, j, mu;
   register site *s;
+  complex grn;
 
 #ifdef DEBUG_CHECK  // Test that fermion_op connects proper components
   FORALLSITES(i, s) {
@@ -32,40 +33,44 @@ void bilinear_src(Twist_Fermion *g_rand, Twist_Fermion *src, int N) {
 #endif
 
   FORALLSITES(i, s) {
+    clear_TF(&(g_rand[i]));
     // Source either all or traceless site fermions, depending on N
     // The last Lambda[DIMF - 1] (N = DIMF) is proportional to the identity
     // The others (N = DIMF - 1) are traceless
     for (j = 0; j < N; j++) {                   // Site fermions
 #ifdef SITERAND
-      g_rand[i].Fsite.c[j].real = gaussian_rand_no(&(s->site_prn));
-      g_rand[i].Fsite.c[j].imag = gaussian_rand_no(&(s->site_prn));
+      grn.real = gaussian_rand_no(&(s->site_prn));
+      grn.imag = gaussian_rand_no(&(s->site_prn));
 #else
-      g_rand[i].Fsite.c[j].real = gaussian_rand_no(&node_prn);
-      g_rand[i].Fsite.c[j].imag = gaussian_rand_no(&node_prn);
+      grn.real = gaussian_rand_no(&node_prn);
+      grn.imag = gaussian_rand_no(&node_prn);
 #endif
+      c_scalar_mult_sum_mat(&(Lambda[j]), &grn, &(g_rand[i].Fsite));
     }
 
     // Source all link and plaquette fermions
     FORALLDIR(mu) {                           // Link fermions
       for (j = 0; j < DIMF; j++) {
 #ifdef SITERAND
-        g_rand[i].Flink[mu].c[j].real = gaussian_rand_no(&(s->site_prn));
-        g_rand[i].Flink[mu].c[j].imag = gaussian_rand_no(&(s->site_prn));
+        grn.real = gaussian_rand_no(&(s->site_prn));
+        grn.imag = gaussian_rand_no(&(s->site_prn));
 #else
-        g_rand[i].Flink[mu].c[j].real = gaussian_rand_no(&node_prn);
-        g_rand[i].Flink[mu].c[j].imag = gaussian_rand_no(&node_prn);
+        grn.real = gaussian_rand_no(&node_prn);
+        grn.imag = gaussian_rand_no(&node_prn);
 #endif
+        c_scalar_mult_sum_mat(&(Lambda[j]), &grn, &(g_rand[i].Flink[mu]));
       }
     }
     for (mu = 0; mu < NPLAQ; mu++) {         // Plaquette fermions
       for (j = 0; j < DIMF; j++) {
 #ifdef SITERAND
-        g_rand[i].Fplaq[mu].c[j].real = gaussian_rand_no(&(s->site_prn));
-        g_rand[i].Fplaq[mu].c[j].imag = gaussian_rand_no(&(s->site_prn));
+        grn.real = gaussian_rand_no(&(s->site_prn));
+        grn.imag = gaussian_rand_no(&(s->site_prn));
 #else
-        g_rand[i].Fplaq[mu].c[j].real = gaussian_rand_no(&node_prn);
-        g_rand[i].Fplaq[mu].c[j].imag = gaussian_rand_no(&node_prn);
+        grn.real = gaussian_rand_no(&node_prn);
+        grn.imag = gaussian_rand_no(&node_prn);
 #endif
+        c_scalar_mult_sum_mat(&(Lambda[j]), &grn, &(g_rand[i].Fplaq[mu]));
       }
     }
   }
@@ -106,8 +111,7 @@ int bilinearWard() {
   Real size_r, norm;
   double sum = 0.0;
   double_complex tc, StoL, LtoS, ave = cmplx(0.0, 0.0);
-  vector tvec;
-  matrix_f tmat;
+  matrix tmat;
   Twist_Fermion *g_rand, *src, **psim;
 
   g_rand = malloc(sites_on_node * sizeof(*g_rand));
@@ -136,60 +140,25 @@ int bilinearWard() {
 
     // Now construct bilinear sum_a psi_a Udag_a eta
     // All fields are on the same site, no gathers
+    // Negative sign from generator normalization
     StoL = cmplx(0.0, 0.0);
     LtoS = cmplx(0.0, 0.0);
     FORALLSITES(i, s) {
       FORALLDIR(mu) {
-        mult_vec_adj_mat(&(psim[0][i].Flink[mu]), &(s->link[mu]), &tvec);
-        tc = dot(&(g_rand[i].Fsite), &tvec);
+        mult_na(&(psim[0][i].Flink[mu]), &(s->link[mu]), &tmat);
+        tc = complextrace_an(&(g_rand[i].Fsite), &tmat);
+        CSUM(StoL, tc);
 #ifdef DEBUG_CHECK
         printf("StoL[%d](%d) %d (%.4g, %.4g)\n",
                i, mu, isrc, tc.real, tc.imag);
 #endif
-        CSUM(StoL, tc);
 
-        mult_adj_mat_vec(&(s->link[mu]), &(psim[0][i].Fsite), &tvec);
-        tc = dot(&(g_rand[i].Flink[mu]), &tvec);
+        mult_an(&(s->link[mu]), &(psim[0][i].Fsite), &tmat);
+        tc = complextrace_an(&(g_rand[i].Flink[mu]), &tmat);
+        CSUM(LtoS, tc);
 #ifdef DEBUG_CHECK
         printf("LtoS[%d](%d) %d (%.4g, %.4g)\n",
                i, mu, isrc, tc.real, tc.imag);
-#endif
-        CSUM(LtoS, tc);
-
-#if 0
-        // Explicitly write out matrix multiplications including adjoints
-        int a, b;
-        double_complex tc2;
-        matrix tmat2;
-        for (a = 0; a < DIMF; a++) {
-          for (b = 0; b < DIMF; b++) {
-            // First site-to-link
-            // tr[gdag^B (M_mu^{-1})^A La^A Udag_mu La^B]
-            mult_an_f(&(s->linkf[mu]), &(Lambda[b]), &tmat);
-            mult_nn_f(&(Lambda[a]), &tmat, &tmat2);
-            tc = trace_f(&tmat2);
-            CMUL(psim[0][i].Flink[mu].c[a], tc, tc2);
-            CMULJ_(g_rand[i].Fsite.c[b], tc2, tc);
-#ifdef DEBUG_CHECK
-            printf("StoL[%d](%d) %d (%.4g, %.4g)\n",
-                   i, mu, isrc, tc.real, tc.imag);
-#endif
-            CSUM(StoL, tc);
-
-            // Now link-to-site
-            // tr[gdag_mu^B (M^{-1})^A La^A La^B Udag_mu]
-            mult_na_f(&(Lambda[b]), &(s->linkf[mu]), &tmat);
-            mult_nn_f(&(Lambda[a]), &tmat, &tmat2);
-            tc = trace_f(&tmat2);
-            CMUL(psim[0][i].Fsite.c[a], tc, tc2);
-            CMULJ_(g_rand[i].Flink[mu].c[b], tc2, tc);
-#ifdef DEBUG_CHECK
-            printf("LtoS[%d](%d) %d (%.4g, %.4g)\n",
-                   i, mu, isrc, tc.real, tc.imag);
-#endif
-            CSUM(LtoS, tc);
-          }
-        }
 #endif
       }
     }
@@ -211,10 +180,10 @@ int bilinearWard() {
   // Accumulate sum_a U_a Udag_a in tmat
   // Multiply by DmuUmu into tmat and trace
   FORALLSITES(i, s) {
-    mult_na_f(&(s->linkf[0]), &(s->linkf[0]), &tmat);   // Initialize
+    mult_na(&(s->link[0]), &(s->link[0]), &tmat);   // Initialize
     for (mu = 1; mu < NUMLINK; mu++)
-      mult_na_sum_f(&(s->linkf[mu]), &(s->linkf[mu]), &tmat);
-    tc = complextrace_nn_f(&(DmuUmu[i]), &tmat);
+      mult_na_sum(&(s->link[mu]), &(s->link[mu]), &tmat);
+    tc = complextrace_nn(&(DmuUmu[i]), &tmat);
     // Make sure trace really is real
     if (fabs(tc.imag) > IMAG_TOL) {
       printf("node%d WARNING: Im(sum[%d]) = %.4g > %.4g\n",

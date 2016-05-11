@@ -20,7 +20,7 @@ void setup_lambda() {
 
   // Make sure Lambda matrices are initialized
   for (i = 0; i < DIMF; i++)
-    clear_mat_f(&(Lambda[i]));
+    clear_mat(&(Lambda[i]));
 
   // N * (N - 1) off-diagonal SU(N) generators
   // (T^{ij, +})_{kl} = i * (de_{ki} de_{lj} + de_{kj} de_{li}) / sqrt(2)
@@ -28,10 +28,7 @@ void setup_lambda() {
   // Sign in second chosen to match previous values
   count = 0;
   for (i = 0; i < NCOL; i++) {
-    unit.e[i][i]=cmplx(1.0,0.0);
     for (j = i + 1; j < NCOL; j++) {
-      unit.e[i][j]=cmplx(0.0,0.0);
-      unit.e[j][i]=cmplx(0.0,0.0);
       for (k = 0; k < NCOL; k++) {
         for (l = 0; l < NCOL; l++) {
           if (k == i && l == j) {
@@ -66,8 +63,8 @@ void setup_lambda() {
 
   // U(1) generator i * I_N / sqrt(N)
   if (DIMF == NCOL * NCOL) {    // Allow SU(N) compilation for now
-    i_inv_sqrt = cmplx(0.0, 1.0 / sqrt((Real)NCOL));
-    clear_mat_f(&(Lambda[DIMF - 1]));
+    i_inv_sqrt = cmplx(0.0, sqrt(one_ov_N));
+    clear_mat(&(Lambda[DIMF - 1]));
     for (i = 0; i < NCOL; i++)
       Lambda[DIMF - 1].e[i][i] = i_inv_sqrt;
   }
@@ -77,7 +74,7 @@ void setup_lambda() {
   for (i = 0; i < DIMF; i++){
     node0_printf("Lambda[%d]\n",i);
     if (this_node == 0)
-      dumpmat_f(&(Lambda[i]));
+      dumpmat(&(Lambda[i]));
   }
 
   // Test group theory
@@ -105,8 +102,8 @@ void setup_lambda() {
 #ifdef DEBUG_CHECK
   for (i = 0; i < DIMF; i++) {
     for (j = 0; j < DIMF; j++) {
-      mult_nn_f(&(Lambda[i]), &(Lambda[j]), &tmat);
-      trace = trace_f(&tmat);
+      mult_nn(&(Lambda[i]), &(Lambda[j]), &tmat);
+      trace = trace(&tmat);
       if (trace.real * trace.real > IMAG_TOL)
         node0_printf("Tr[T_%d T_%d] = (%.4g, %.4g)\n",
                      i, j, trace.real, trace.imag);

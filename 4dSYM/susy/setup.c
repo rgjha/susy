@@ -84,6 +84,7 @@ int initial_set() {
 
   this_node = mynode();
   number_of_nodes = numnodes();
+  one_ov_N = 1.0 / (Real)NCOL;
   volume = nx * ny * nz * nt;
   total_iters = 0;
   minus1 = cmplx(-1.0, 0.0);
@@ -96,38 +97,37 @@ int initial_set() {
 // -----------------------------------------------------------------
 // Allocate space for fields
 void make_fields() {
+#ifdef EIG_POT
+  node0_printf("Single-trace scalar potential\n");
+#else
+  node0_printf("Double-trace scalar potential\n");
+#endif
 #ifdef LINEAR_DET
   node0_printf("Supersymmetric constraint on (det[plaq] - 1)\n");
 #else
   node0_printf("Supersymmetric constraint on |det[plaq] - 1|^2\n");
 #endif
-  double size = (double)(sizeof(complex));
-  size += (double)(2.0 * (1 + NUMLINK + NPLAQ)) * sizeof(vector);
-  FIELD_ALLOC(site_src, vector);
-  FIELD_ALLOC(site_dest, vector);
+  double size = (double)(2.0 * sizeof(complex));
+  FIELD_ALLOC(tr_eta, complex);
   FIELD_ALLOC(tr_dest, complex);
-  FIELD_ALLOC_VEC(link_src, vector, NUMLINK);
-  FIELD_ALLOC_VEC(link_dest, vector, NUMLINK);
-  FIELD_ALLOC_VEC(plaq_src, vector, NPLAQ);
-  FIELD_ALLOC_VEC(plaq_dest, vector, NPLAQ);
 
-  size += (double)(2.0 * (1 + NUMLINK + NPLAQ)) * sizeof(matrix_f);
-  FIELD_ALLOC(site_mat, matrix_f);
-  FIELD_ALLOC(site_pmat, matrix_f);
-  FIELD_ALLOC_VEC(link_mat, matrix_f, NUMLINK);
-  FIELD_ALLOC_VEC(link_pmat, matrix_f, NUMLINK);
-  FIELD_ALLOC_VEC(plaq_mat, matrix_f, NPLAQ);
-  FIELD_ALLOC_VEC(plaq_pmat, matrix_f, NPLAQ);
+  size += (double)(2.0 * (1 + NUMLINK + NPLAQ)) * sizeof(matrix);
+  FIELD_ALLOC(site_src, matrix);
+  FIELD_ALLOC(site_dest, matrix);
+  FIELD_ALLOC_VEC(link_src, matrix, NUMLINK);
+  FIELD_ALLOC_VEC(link_dest, matrix, NUMLINK);
+  FIELD_ALLOC_VEC(plaq_src, matrix, NPLAQ);
+  FIELD_ALLOC_VEC(plaq_dest, matrix, NPLAQ);
 
   // For convenience in calculating action and force
-  size += (double)(1.0 + NPLAQ + 3.0 * NUMLINK) * sizeof(matrix_f);
+  size += (double)(1.0 + NPLAQ + 3.0 * NUMLINK) * sizeof(matrix);
   size += (double)(NUMLINK + 6.0 * NPLAQ) * sizeof(complex);
-  FIELD_ALLOC(DmuUmu, matrix_f);
+  FIELD_ALLOC(DmuUmu, matrix);
   FIELD_ALLOC_VEC(Tr_Uinv, complex, NUMLINK);
-  FIELD_ALLOC_VEC(Fmunu, matrix_f, NPLAQ);
-  FIELD_ALLOC_VEC(Uinv, matrix_f, NUMLINK);
-  FIELD_ALLOC_VEC(Udag_inv, matrix_f, NUMLINK);
-  FIELD_ALLOC_VEC(UpsiU, matrix_f, NUMLINK);
+  FIELD_ALLOC_VEC(Fmunu, matrix, NPLAQ);
+  FIELD_ALLOC_VEC(Uinv, matrix, NUMLINK);
+  FIELD_ALLOC_VEC(Udag_inv, matrix, NUMLINK);
+  FIELD_ALLOC_VEC(UpsiU, matrix, NUMLINK);
   FIELD_ALLOC_MAT_OFFDIAG(plaqdet, complex, NUMLINK);
   FIELD_ALLOC_MAT_OFFDIAG(tempdet, complex, NUMLINK);
   FIELD_ALLOC_MAT_OFFDIAG(ZWstar, complex, NUMLINK);
@@ -136,23 +136,21 @@ void make_fields() {
   FIELD_ALLOC_MAT_OFFDIAG(tempZW, complex, NUMLINK);
 #endif
 
-  // Temporary vectors, matrices and Twist_Fermion
-  size += (double)(3.0 * sizeof(matrix_f));
+  // Temporary matrices and Twist_Fermion
+  size += (double)(3.0 * sizeof(matrix));
   size += (double)(sizeof(Twist_Fermion));
-  size += (double)(NUMLINK * sizeof(vector));
-  FIELD_ALLOC(tempmat, matrix_f);
-  FIELD_ALLOC(tempmat2, matrix_f);
-  FIELD_ALLOC(staple, matrix_f);
+  FIELD_ALLOC(tempmat, matrix);
+  FIELD_ALLOC(tempmat2, matrix);
+  FIELD_ALLOC(staple, matrix);
   FIELD_ALLOC(tempTF, Twist_Fermion);
-  FIELD_ALLOC_VEC(tempvec, vector, NUMLINK);
 
 #ifdef CORR
   int j;
-  size += (double)(N_B * NUMLINK * sizeof(matrix_f));
+  size += (double)(N_B * NUMLINK * sizeof(matrix));
   size += (double)(N_K * NUMLINK * NUMLINK * sizeof(Real));
   size += (double)(2.0 * sizeof(Kops));
   for (j = 0; j < N_B; j++)
-    FIELD_ALLOC_VEC(Ba[j], matrix_f, NUMLINK);
+    FIELD_ALLOC_VEC(Ba[j], matrix, NUMLINK);
   for (j = 0; j < N_K; j++)
     FIELD_ALLOC_MAT(traceBB[j], double, NUMLINK, NUMLINK);
   FIELD_ALLOC(tempops, Kops);
@@ -298,6 +296,8 @@ int readin(int prompt) {
     // Konishi vacuum subtractions
     for (j = 0; j < N_K; j++)
       IF_OK status += get_f(stdin, prompt, "vevK", &par_buf.vevK[j]);
+    for (j = 0; j < N_K; j++)
+      IF_OK status += get_f(stdin, prompt, "vevS", &par_buf.vevS[j]);
 #endif
 
     // Maximum conjugate gradient iterations
@@ -382,16 +382,13 @@ int readin(int prompt) {
     doG = 1;
   else
     doG = 0;
-  Gc = cmplx(0.0, C2 * G * sqrt((Real)NCOL));
 
   B = par_buf.B;
   if (B > IMAG_TOL)
     doB = 1;
   else
     doB = 0;
-  Bc = cmplx(0.0, C2 * B * B / sqrt((Real)NCOL));
 
-  one_ov_N = 1.0 / (Real)NCOL;
   kappa = (Real)NCOL * 0.5 / lambda;
   node0_printf("lambda=%.4g --> kappa=Nc/(2lambda)=%.4g\n",
                lambda, kappa);
@@ -417,6 +414,7 @@ int readin(int prompt) {
 #ifdef CORR
   for (j = 0; j < N_K; j++) {
     vevK[j] = par_buf.vevK[j];
+    vevS[j] = par_buf.vevS[j];
     // Will check positivity of volK to make sure it has been set
     volK[j] = -1.0;
   }
@@ -440,21 +438,17 @@ int readin(int prompt) {
   // Do whatever is needed to get lattice
   startlat_p = reload_lattice(startflag, startfile);
 
-  // Compute initial plaqdet, DmuUmu and Fmunu
-  compute_plaqdet();
-  compute_DmuUmu();
-  compute_Fmunu();
-
-  // Generate the adjoint links
-  fermion_rep();
-
-#if (NCOL > 4)
   // Allocate arrays to be used by LAPACK in determinant.c
+  // Needs to be above compute_Uinv()
   ipiv = malloc(NCOL * sizeof(*ipiv));
   store = malloc(2 * NCOL * NCOL * sizeof(*store));
   work = malloc(4 * NCOL * sizeof(*work));
-#endif
 
+  // Compute initial plaqdet, DmuUmu and Fmunu
+  compute_plaqdet();
+  compute_Uinv();
+  compute_DmuUmu();
+  compute_Fmunu();
   return 0;
 }
 // -----------------------------------------------------------------

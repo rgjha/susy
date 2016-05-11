@@ -64,7 +64,7 @@ void hvy_pot(int do_det) {
   Real MAX_r = 100.0 * MAX_X, tr, lookup[MAX_pts], W[MAX_pts];
   double wloop;
   complex tc;
-  matrix_f tmat, tmat2, *mat;
+  matrix tmat, tmat2, *mat;
   msg_tag *mtag = NULL;
 
   // Initialize Wilson loop accumulators
@@ -88,19 +88,19 @@ void hvy_pot(int do_det) {
   for (t_dist = 1; t_dist <= MAX_T; t_dist++) {
     if (t_dist == 1) {
       FORALLSITES(i, s)
-        mat_copy_f(&(s->linkf[TUP]), &(staple[i]));
+        mat_copy(&(s->link[TUP]), &(staple[i]));
     }
     else {
-      mtag = start_gather_field(staple, sizeof(matrix_f),
+      mtag = start_gather_field(staple, sizeof(matrix),
                                 goffset[TUP], EVENANDODD, gen_pt[0]);
       wait_gather(mtag);
       FORALLSITES(i, s) {
-        mat = (matrix_f *)gen_pt[0][i];
-        mult_nn_f(&(s->linkf[TUP]), mat, &(tempmat2[i]));
+        mat = (matrix *)gen_pt[0][i];
+        mult_nn(&(s->link[TUP]), mat, &(tempmat2[i]));
       }
       cleanup_gather(mtag);
       FORALLSITES(i, s)
-        mat_copy_f(&(tempmat2[i]), &(staple[i]));
+        mat_copy(&(tempmat2[i]), &(staple[i]));
     }
 
     for (x_dist = 0; x_dist <= MAX_X; x_dist++) {
@@ -111,7 +111,7 @@ void hvy_pot(int do_det) {
       for (y_dist = y_start; y_dist <= MAX_X; y_dist++) {
         // Gather staple to tempmat along spatial offset, using tempmat2
         FORALLSITES(i, s)
-          mat_copy_f(&(staple[i]), &(tempmat[i]));
+          mat_copy(&(staple[i]), &(tempmat[i]));
         for (j = 0; j < x_dist; j++)
           shiftmat(tempmat, tempmat2, goffset[XUP]);
         for (j = 0; j < y_dist; j++)
@@ -170,14 +170,14 @@ void hvy_pot(int do_det) {
           wloop = 0.0;
           FORALLSITES(i, s) {
             // Compute the actual Coulomb gauge Wilson loop product
-            mult_na_f(&(staple[i]), &(tempmat[i]), &tmat);
+            mult_na(&(staple[i]), &(tempmat[i]), &tmat);
 
             if (do_det == 1)
               det_project(&tmat, &tmat2);
             else
-              mat_copy_f(&tmat, &tmat2);
+              mat_copy(&tmat, &tmat2);
 
-            tc = trace_f(&tmat2);
+            tc = trace(&tmat2);
             wloop += tc.real;
           }
           g_doublesum(&wloop);

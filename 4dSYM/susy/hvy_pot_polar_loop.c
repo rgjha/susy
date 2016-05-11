@@ -17,15 +17,15 @@ void hvy_pot_polar_loop() {
   int dir[2 * (MAX_T + MAX_X)], sign[2 * (MAX_T + MAX_X)];
   double polarloop;
   complex c_loop;
-  matrix_f tmat, tmat2;
+  matrix tmat, tmat2;
 
   FORALLSITES(i, s) {
     for (mu = 0; mu < NUMLINK; mu++) {
       // Polar projection of all links (even the unused diagonal link)
       // To be multiplied together after projecting
       // !!! Overwrites links
-      polar(&(s->linkf[mu]), &tmat, &tmat2);
-      mat_copy_f(&tmat, &(s->linkf[mu]));
+      polar(&(s->link[mu]), &tmat, &tmat2);
+      mat_copy(&tmat, &(s->link[mu]));
     }
   }
 
@@ -67,7 +67,7 @@ void hvy_pot_polar_loop() {
         path(dir, sign, length);
         polarloop = 0.0;
         FORALLSITES(i, s) {
-          c_loop = trace_f(&(tempmat[i]));
+          c_loop = trace(&(tempmat[i]));
           polarloop += c_loop.real;
         }
         g_doublesum(&polarloop);

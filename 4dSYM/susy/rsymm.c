@@ -11,25 +11,25 @@
 // Walk around path of fundamental links specified by dir, sign and kind
 // dir lists the directions in the path
 // sign lists whether to go forward (1) or backwards (-1)
-// kind tells us whether to use linkf (1) or mom = (linkf^{-1})^dag (-1)
+// kind tells us whether to use link (1) or mom = (link^{-1})^dag (-1)
 // length is the length of the path, and of each array
-// Use tempmat to accumulate linkf product along path
+// Use tempmat to accumulate link product along path
 // Use tempmat2 for temporary storage
 void rsymm_path(int *dir, int *sign, int *kind, int length) {
   register int i;
   register site *s;
   int j;
-  matrix_f *mat;
+  matrix *mat;
   msg_tag *mtag = NULL;
 
   // Initialize tempmat with first link in path
   if (sign[0] > 0) {    // Gather from site - dir[0], no adjoint
     if (kind[0] > 0) {
-      mtag = start_gather_site(F_OFFSET(linkf[dir[0]]), sizeof(matrix_f),
+      mtag = start_gather_site(F_OFFSET(link[dir[0]]), sizeof(matrix),
                                goffset[dir[0]] + 1, EVENANDODD, gen_pt[0]);
     }
     else if (kind[0] < 0) {
-      mtag = start_gather_site(F_OFFSET(mom[dir[0]]), sizeof(matrix_f),
+      mtag = start_gather_site(F_OFFSET(mom[dir[0]]), sizeof(matrix),
                                goffset[dir[0]] + 1, EVENANDODD, gen_pt[0]);
     }
     else {
@@ -39,16 +39,16 @@ void rsymm_path(int *dir, int *sign, int *kind, int length) {
 
     wait_gather(mtag);
     FORALLSITES(i, s)
-      mat_copy_f((matrix_f *)(gen_pt[0][i]), &(tempmat[i]));
+      mat_copy((matrix *)(gen_pt[0][i]), &(tempmat[i]));
     cleanup_gather(mtag);
   }
 
   else if (sign[0] < 0) {    // Take adjoint, no gather
     FORALLSITES(i, s) {
       if (kind[0] > 0)
-        adjoint_f(&(s->linkf[dir[0]]), &(tempmat[i]));
+        adjoint(&(s->link[dir[0]]), &(tempmat[i]));
       else if (kind[0] < 0)
-        adjoint_f(&(s->mom[dir[0]]), &(tempmat[i]));
+        adjoint(&(s->mom[dir[0]]), &(tempmat[i]));
       else {
         node0_printf("rsymm_path: unrecognized kind[0] = %d\n", kind[0]);
         terminate(1);
@@ -62,44 +62,44 @@ void rsymm_path(int *dir, int *sign, int *kind, int length) {
 
   // Accumulate subsequent links in product in tempmat
   for (j = 1; j < length; j++) {
-    if (sign[j] > 0) {    // mult_nn_f then gather from site - dir[j]
+    if (sign[j] > 0) {    // mult_nn then gather from site - dir[j]
       FORALLSITES(i, s) {
         if (kind[j] > 0)
-          mult_nn_f(&(tempmat[i]), &(s->linkf[dir[j]]), &(tempmat2[i]));
+          mult_nn(&(tempmat[i]), &(s->link[dir[j]]), &(tempmat2[i]));
         else if (kind[j] < 0)
-          mult_nn_f(&(tempmat[i]), &(s->mom[dir[j]]), &(tempmat2[i]));
+          mult_nn(&(tempmat[i]), &(s->mom[dir[j]]), &(tempmat2[i]));
         else {
           node0_printf("rsymm_path: unrecognized kind[%d] = %d\n", j, kind[j]);
           terminate(1);
         }
       }
-      mtag = start_gather_field(tempmat2, sizeof(matrix_f),
+      mtag = start_gather_field(tempmat2, sizeof(matrix),
                                 goffset[dir[j]] + 1, EVENANDODD, gen_pt[0]);
 
       wait_gather(mtag);
       FORALLSITES(i, s)
-        mat_copy_f((matrix_f *)(gen_pt[0][i]), &(tempmat[i]));
+        mat_copy((matrix *)(gen_pt[0][i]), &(tempmat[i]));
       cleanup_gather(mtag);
     }
 
-    else if (sign[j] < 0) {    // Gather from site + dir[j] then mult_na_f
-      mtag = start_gather_field(tempmat, sizeof(matrix_f),
+    else if (sign[j] < 0) {    // Gather from site + dir[j] then mult_na
+      mtag = start_gather_field(tempmat, sizeof(matrix),
                                 goffset[dir[j]], EVENANDODD, gen_pt[1]);
 
       wait_gather(mtag);
       FORALLSITES(i, s) {
-        mat = (matrix_f *)(gen_pt[1][i]);
+        mat = (matrix *)(gen_pt[1][i]);
         if (kind[j] > 0)
-          mult_na_f(mat, &(s->linkf[dir[j]]), &(tempmat2[i]));
+          mult_na(mat, &(s->link[dir[j]]), &(tempmat2[i]));
         else if (kind[j] < 0)
-          mult_na_f(mat, &(s->mom[dir[j]]), &(tempmat2[i]));
+          mult_na(mat, &(s->mom[dir[j]]), &(tempmat2[i]));
         else {
           node0_printf("rsymm_path: unrecognized kind[%d] = %d\n", j, kind[j]);
           terminate(1);
         }
       }
       FORALLSITES(i, s)   // Don't want to overwrite tempmat too soon
-        mat_copy_f(&(tempmat2[i]), &(tempmat[i]));
+        mat_copy(&(tempmat2[i]), &(tempmat[i]));
       cleanup_gather(mtag);
     }
     else {
@@ -123,51 +123,51 @@ void rsymm() {
   double rsymm_loop, wloop, invlink[NUMLINK], invlink_sum = 0.0, td;
   double invlinkSq = 0.0;
   complex tc;
-  matrix_f tmat;
+  matrix tmat;
 
   node0_printf("rsymm: MAX = %d\n", max);
 
   // Compute and optionally check inverse matrices
   // Temporarily store the adjoint of the inverse in momentum matrices,
   // since it transforms like the original link
-  for (mu = XUP; mu < NUMLINK; mu++) {
+  FORALLDIR(mu) {
     FORALLSITES(i, s) {
-      invert(&(s->linkf[mu]), &tmat);
-      adjoint_f(&tmat, &(s->mom[mu]));
+      invert(&(s->link[mu]), &tmat);
+      adjoint(&tmat, &(s->mom[mu]));
 
 #ifdef DEBUG_CHECK
 #define INV_TOL 1e-12
 #define INV_TOL_SQ 1e-24
       // Check inversion -- tmat should be unit matrix
       int j, k;
-      mult_nn_f(&(s->mom[mu]), &(s->linkf[mu]), &tmat);
+      mult_nn(&(s->mom[mu]), &(s->link[mu]), &tmat);
       for (j = 0; j < NCOL; j++) {
         if (fabs(1 - tmat.e[j][j].real) > INV_TOL
             || fabs(tmat.e[j][j].imag) > INV_TOL) {
           printf("Link inversion fails on node%d:\n", this_node);
-          dumpmat_f(&tmat);
+          dumpmat(&tmat);
         }
         for (k = j + 1; k < NCOL; k++) {
           if (cabs_sq(&(tmat.e[j][k])) > INV_TOL_SQ
               || cabs_sq(&(tmat.e[k][j])) > INV_TOL_SQ) {
             printf("Link inversion fails on node%d:\n", this_node);
-            dumpmat_f(&tmat);
+            dumpmat(&tmat);
           }
         }
       }
       // Check left multiplication in addition to right multiplication
-      mult_nn_f(&(s->linkf[mu]), &(s->mom[mu]), &tmat);
+      mult_nn(&(s->link[mu]), &(s->mom[mu]), &tmat);
       for (j = 0; j < NCOL; j++) {
         if (fabs(1 - tmat.e[j][j].real) > INV_TOL
             || fabs(tmat.e[j][j].imag) > INV_TOL) {
           printf("Link inversion fails on node%d:\n", this_node);
-          dumpmat_f(&tmat);
+          dumpmat(&tmat);
         }
         for (k = j + 1; k < NCOL; k++) {
           if (cabs_sq(&(tmat.e[j][k])) > INV_TOL_SQ
               || cabs_sq(&(tmat.e[k][j])) > INV_TOL_SQ) {
             printf("Link inversion fails on node%d:\n", this_node);
-            dumpmat_f(&tmat);
+            dumpmat(&tmat);
           }
         }
       }
@@ -177,11 +177,11 @@ void rsymm() {
 
   // First check average value of the inverted link
   // Tr[U^{-1} (U^{-1})^dag] / N and corresponding width
-  // Just like link_trace() but use s->mom instead of s->linkf
-  for (dir_inv = XUP; dir_inv < NUMLINK; dir_inv++) {
+  // Just like link_trace() but use s->mom instead of s->link
+  FORALLDIR(dir_inv) {
     invlink[dir_inv] = 0.0;
     FORALLSITES(i, s) {
-      td = realtrace_f(&(s->mom[dir_inv]), &(s->mom[dir_inv]));
+      td = realtrace(&(s->mom[dir_inv]), &(s->mom[dir_inv]));
       invlink[dir_inv] += td;
       invlinkSq += td * td;
     }
@@ -194,7 +194,7 @@ void rsymm() {
   g_doublesum(&(invlinkSq));
 
   node0_printf("INVLINK");
-  for (dir_inv = XUP; dir_inv < NUMLINK; dir_inv++)
+  FORALLDIR(dir_inv)
     node0_printf(" %.6g", invlink[dir_inv]);
   td = sqrt(invlinkSq - invlink_sum * invlink_sum);
   node0_printf(" %.6g %.6g\n", invlink_sum, td);
@@ -202,8 +202,8 @@ void rsymm() {
   // Construct and print all loops up to max x max
   // in all NUMLINK * (NUMLINK - 1) directions
   // Invert all links in the second direction in each loop
-  for (dir_normal = XUP; dir_normal < NUMLINK; dir_normal++) {
-    for (dir_inv = XUP; dir_inv < NUMLINK; dir_inv++) {
+  FORALLDIR(dir_normal) {
+    FORALLDIR(dir_inv) {
       if (dir_inv == dir_normal)
         continue;
 
@@ -243,7 +243,7 @@ void rsymm() {
           path(dir, sign, length);
           wloop = 0.0;
           FORALLSITES(i, s) {
-            tc = trace_f(&(tempmat[i]));
+            tc = trace(&(tempmat[i]));
             wloop += tc.real;
           }
           g_doublesum(&wloop);
@@ -251,7 +251,7 @@ void rsymm() {
           rsymm_path(dir, sign, kind, length);
           rsymm_loop = 0.0;
           FORALLSITES(i, s) {
-            tc = trace_f(&(tempmat[i]));
+            tc = trace(&(tempmat[i]));
             rsymm_loop += tc.real;
           }
           g_doublesum(&rsymm_loop);

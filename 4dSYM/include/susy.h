@@ -24,10 +24,8 @@
 #endif
 #endif
 
-typedef struct { fcomplex e[NCOL][NCOL]; } fmatrix_f;
-typedef struct { fcomplex e[DIMF][DIMF]; } fmatrix;
-typedef struct { fcomplex c[NCOL]; } fvector_f;
-typedef struct { fcomplex c[DIMF]; } fvector;
+typedef struct { fcomplex e[NCOL][NCOL]; } fmatrix;
+typedef struct { fcomplex c[NCOL]; } fvector;
 
 // Anti-hermitian matrices for general NCOL
 typedef struct {
@@ -35,26 +33,20 @@ typedef struct {
   float im_diag[NCOL];
 } fanti_hermitmat;
 
-typedef struct { dcomplex e[NCOL][NCOL]; } dmatrix_f;
-typedef struct { dcomplex e[DIMF][DIMF]; } dmatrix;
-typedef struct { dcomplex c[NCOL]; } dvector_f;
-typedef struct { dcomplex c[DIMF]; } dvector;
+typedef struct { dcomplex e[NCOL][NCOL]; } dmatrix;
+typedef struct { dcomplex c[NCOL]; } dvector;
 typedef struct {
   dcomplex m[NCOL * (NCOL - 1) / 2];
   double im_diag[NCOL];
 } danti_hermitmat;
 
 #if (PRECISION == 1)
-#define matrix_f    fmatrix_f
-#define matrix      fmatrix
-#define vector_f    fvector_f
-#define vector      fvector
+#define matrix    fmatrix
+#define vector    fvector
 #define anti_hermitmat  fanti_hermitmat
 #else
-#define matrix_f    dmatrix_f
-#define matrix      dmatrix
-#define vector_f    dvector_f
-#define vector      dvector
+#define matrix    dmatrix
+#define vector    dvector
 #define anti_hermitmat  danti_hermitmat
 #endif
 
@@ -70,203 +62,144 @@ typedef struct { complex e[2][2]; } su2_matrix;
 
 // -----------------------------------------------------------------
 // Subroutine definitions
-// Fundamental rep vector operations
-// In file clearvec_f.c
-void clearvec_f(vector_f *v);
+// Vector operations
+// In file clearvec.c
+void clearvec(vector *v);
 // -----------------------------------------------------------------
 
 
 
 // -----------------------------------------------------------------
-// Fundamental rep matrix operations (including anti-hermitian matrices)
-// In file clear_mat_f
-void clear_mat_f(matrix_f *c);
+// Matrix operations
+// In file dumpmat.c
+void dumpmat(matrix *a);
 
-// In file trace_f.c
-complex trace_f(matrix_f *a);
+// In file clear_mat.c
+void clear_mat(matrix *c);
 
-// In file realtr_f.c
-Real realtrace_nn_f(matrix_f *a, matrix_f *b);
-Real realtrace_f(matrix_f *a, matrix_f *b);
+// In file trace.c
+complex trace(matrix *a);
 
-// In file complextr_f.c
-complex complextrace_nn_f(matrix_f *a, matrix_f *b);
-complex complextrace_an_f(matrix_f *a, matrix_f *b);
-complex complextrace_na_f(matrix_f *a, matrix_f *b);
+// In file realtr.c
+Real realtrace_nn(matrix *a, matrix *b);
+Real realtrace(matrix *a, matrix *b);
 
-// b <-- a, in file mat_copy_f.c
-void mat_copy_f(matrix_f *a, matrix_f *b);
+// In file complextr.c
+complex complextrace_nn(matrix *a, matrix *b);
+complex complextrace_an(matrix *a, matrix *b);
+complex complextrace_na(matrix *a, matrix *b);
 
-// b <-- adag, in file adjoint_f.c
-void adjoint_f(matrix_f *a, matrix_f *b);
+// b <-- a, in file mat_copy.c
+void mat_copy(matrix *a, matrix *b);
 
-// In file addmat_f.c
-void sum_matrix_f(matrix_f *b, matrix_f *c);
-void add_matrix_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// b <-- (+/-)adag, in file adjoint.c
+void adjoint(matrix *a, matrix *b);
+void neg_adjoint(matrix *a, matrix *b);
 
-// In file addamat_f.c
-void add_adj_matrix_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file addmat.c
+void sum_matrix(matrix *b, matrix *c);
+void add_matrix(matrix *a, matrix *b, matrix *c);
 
-// In file submat_f.c
-void dif_matrix_f(matrix_f *b, matrix_f *c);
-void sub_matrix_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file addamat.c
+void add_adj_matrix(matrix *a, matrix *b, matrix *c);
 
-// In file subamat_f.c
-void sub_adj_matrix_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file submat.c
+void dif_matrix(matrix *b, matrix *c);
+void sub_matrix(matrix *a, matrix *b, matrix *c);
 
-// In file s_a_d_mat_f.c
-void scalar_add_diag_f(matrix_f *a, Real s);
+// In file subamat.c
+void sub_adj_matrix(matrix *a, matrix *b, matrix *c);
 
-// In file s_m_mat_f.c
-void scalar_mult_matrix_f(matrix_f *src, Real s, matrix_f *c);
+// In file s_a_d_mat.c
+void scalar_add_diag(matrix *a, Real s);
 
-// In file s_m_amat_f.c
-void scalar_mult_adj_matrix_f(matrix_f *src, Real s, matrix_f *c);
+// In file s_m_mat.c
+void scalar_mult_matrix(matrix *src, Real s, matrix *c);
 
-// In file s_m_a_mat_f.c
-void scalar_mult_sum_matrix_f(matrix_f *b, Real s, matrix_f *c);
-void scalar_mult_add_matrix_f(matrix_f *a, matrix_f *b, Real s, matrix_f *c);
+// In file s_m_amat.c
+void scalar_mult_adj_matrix(matrix *src, Real s, matrix *c);
 
-// In file s_m_a_amat_f.c
-void scalar_mult_sum_adj_matrix_f(matrix_f *b, Real s, matrix_f *c);
+// In file s_m_a_mat.c
+void scalar_mult_sum_matrix(matrix *b, Real s, matrix *c);
+void scalar_mult_add_matrix(matrix *a, matrix *b, Real s, matrix *c);
 
-// In file s_m_s_mat_f.c
-void scalar_mult_dif_matrix_f(matrix_f *b, Real s, matrix_f *c);
+// In file s_m_a_amat.c
+void scalar_mult_sum_adj_matrix(matrix *b, Real s, matrix *c);
 
-// In file s_m_s_amat_f.c
-void scalar_mult_dif_adj_matrix_f(matrix_f *b, Real s, matrix_f *c);
+// In file s_m_s_mat.c
+void scalar_mult_dif_matrix(matrix *b, Real s, matrix *c);
 
-// In file cs_a_d_mat_f.c
-void c_scalar_add_diag_f(matrix_f *a, complex *f);
+// In file s_m_s_amat.c
+void scalar_mult_dif_adj_matrix(matrix *b, Real s, matrix *c);
 
-// In file cs_m_mat_f.c
-void c_scalar_mult_mat_f(matrix_f *b, complex *s, matrix_f *c);
+// In file cs_a_d_mat.c
+void c_scalar_add_diag(matrix *a, complex *f);
 
-// In file cs_m_a_mat_f.c
-void c_scalar_mult_sum_mat_f(matrix_f *b, complex *s, matrix_f *c);
+// In file cs_m_mat.c
+void c_scalar_mult_mat(matrix *b, complex *s, matrix *c);
 
-// In file cs_m_a_amat_f.c
-void c_scalar_mult_sum_adj_mat_f(matrix_f *b, complex *s, matrix_f *c);
+// In file cs_m_a_mat.c
+void c_scalar_mult_sum_mat(matrix *b, complex *s, matrix *c);
 
-// In file cs_m_a_mata_f.c
-void c_scalar_mult_sum_mat_adj_f(matrix_f *b, complex *s, matrix_f *c);
+// In file cs_m_a_amat.c
+void c_scalar_mult_sum_adj_mat(matrix *b, complex *s, matrix *c);
+void c_scalar_mult_dif_adj_mat(matrix *b, complex *s, matrix *c);
 
-// In file cs_m_s_mat_f.c
-void c_scalar_mult_dif_mat_f(matrix_f *b, complex *s, matrix_f *c);
+// In file cs_m_a_mata.c
+void c_scalar_mult_sum_mat_adj(matrix *b, complex *s, matrix *c);
 
-// In file dumpmat_f.c
-void dumpmat_f(matrix_f *m);
+// In file cs_m_s_mat.c
+void c_scalar_mult_dif_mat(matrix *b, complex *s, matrix *c);
 
-// In file m_mat_nn_f.c
-void mult_nn_sum_f(matrix_f *a, matrix_f *b, matrix_f *c);
-void mult_nn_dif_f(matrix_f *a, matrix_f *b, matrix_f *c);
-void mult_nn_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file m_mat_nn.c
+void mult_nn_sum(matrix *a, matrix *b, matrix *c);
+void mult_nn_dif(matrix *a, matrix *b, matrix *c);
+void mult_nn(matrix *a, matrix *b, matrix *c);
 
-// In file m_mat_na_f.c
-void mult_na_sum_f(matrix_f *a, matrix_f *b, matrix_f *c);
-void mult_na_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file m_mat_na.c
+void mult_na_sum(matrix *a, matrix *b, matrix *c);
+void mult_na_dif(matrix *a, matrix *b, matrix *c);
+void mult_na(matrix *a, matrix *b, matrix *c);
 
-// In file m_mat_an_f.c
-void mult_an_f(matrix_f *a, matrix_f *b, matrix_f *c);
+// In file m_mat_an.c
+void mult_an_sum(matrix *a, matrix *b, matrix *c);
+void mult_an_dif(matrix *a, matrix *b, matrix *c);
+void mult_an(matrix *a, matrix *b, matrix *c);
 
-// Relate fundamental matrices and anti-hermitian matrices
+// c <-- s * a * b, in file s_m_mat_nn.c
+void scalar_mult_nn_sum(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_nn_dif(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_nn(matrix *a, matrix *b, Real s, matrix *c);
+
+// c <-- s * a * bdag, in file s_m_mat_na.c
+void scalar_mult_na_sum(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_na_dif(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_na(matrix *a, matrix *b, Real s, matrix *c);
+
+// c <-- s * adag * b, in file s_m_mat_an.c
+void scalar_mult_an_sum(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_an_dif(matrix *a, matrix *b, Real s, matrix *c);
+void scalar_mult_an(matrix *a, matrix *b, Real s, matrix *c);
+// -----------------------------------------------------------------
+
+
+
+// -----------------------------------------------------------------
+// Anti-hermitian matrix routines
 // In file make_ahmat.c
-void make_anti_hermitian(matrix_f *m, anti_hermitmat *ah);
+void make_anti_hermitian(matrix *m, anti_hermitmat *ah);
 
 // In file rand_ahmat.c
 void random_anti_hermitian(anti_hermitmat *ah, double_prn *prn_pt);
 
 // In file uncmp_ahmat.c
-void uncompress_anti_hermitian(anti_hermitmat *ah, matrix_f *m);
+void uncompress_anti_hermitian(anti_hermitmat *ah, matrix *m);
 
 // In file cmp_ahmat.c
-void compress_anti_hermitian(matrix_f *m, anti_hermitmat *ah);
+void compress_anti_hermitian(matrix *m, anti_hermitmat *ah);
 
 // In file dump_ahmat.c
 void dump_ahmat(anti_hermitmat *ahm);
-// -----------------------------------------------------------------
-
-
-
-// -----------------------------------------------------------------
-// Fermion rep vector operations
-// In file dumpvec.c
-void dumpvec(vector *v);
-
-// In file clearvec.c
-void clearvec(vector *v);
-
-// In file msq_vec.c
-Real magsq_vec(vector *v);
-
-// In file vec_copy.c
-void vec_copy(vector *a, vector *b);
-
-// In file rdot.c
-Real rdot(vector *a, vector *b);
-
-// In file dot.c
-complex dot(vector *a, vector *b);
-
-// In file addvec.c
-void add_vector(vector *a, vector *b, vector *c);
-
-// In file subvec.c
-void sub_vector(vector *a, vector *b, vector *c);
-
-// In file s_m_vec.c
-void scalar_mult_vector(vector *src, Real s, vector *c);
-
-// In file s_m_a_vec.c
-void scalar_mult_sum_vector(vector *b, Real s, vector *c);
-void scalar_mult_add_vector(vector *a, vector *b, Real s, vector *c);
-
-// In file s_m_s_vec.c
-void scalar_mult_dif_vector(vector *b, Real s, vector *c);
-// -----------------------------------------------------------------
-
-
-
-// -----------------------------------------------------------------
-// Fermion rep matrix operations, most involving vectors as well
-// In file dumpmat.c
-void dumpmat(matrix *m);
-
-// c <-- a * b, in file m_matvec.c
-void mult_mat_vec(matrix *a, vector *b, vector *c);
-
-// c <-- c + a * b, in file m_matvec_s.c
-void mult_mat_vec_sum(matrix *a, vector *b, vector *c);
-
-// c <-- c - a * b, in file m_matvec_ns.c
-void mult_mat_vec_dif(matrix *a, vector *b, vector *c);
-
-// c <-- adag * b, in file m_amatvec.c
-void mult_adj_mat_vec(matrix *a, vector *b, vector *c);
-
-// c <-- c + adag * b, in file m_amatvec_s.c
-void mult_adj_mat_vec_sum(matrix *a, vector *b, vector *c);
-
-// c <-- c - adag * b, in file m_amatvec_ns.c
-void mult_adj_mat_vec_dif(matrix *a, vector *b, vector *c);
-
-// c <-- b * a, in file m_vecmat.c
-void mult_vec_mat(vector *b, matrix *a, vector *c);
-
-// c <-- c + b * a, in file m_vecmat_s.c
-void mult_vec_mat_sum(vector *b, matrix *a, vector *c);
-
-// c <-- c - b * a, in file m_vecmat_ns.c
-void mult_vec_mat_dif(vector *b, matrix *a, vector *c);
-
-// c <-- b * adag, in file m_vecamat.c
-void mult_vec_adj_mat(vector *b, matrix *a, vector *c);
-
-// c <-- c + b * adag, in file m_vecamat_s.c
-void mult_vec_adj_mat_sum(vector *b, matrix *a, vector *c);
-
-// c <-- c - b * adag, in file m_vecamat_ns.c
-void mult_vec_adj_mat_dif(vector *b, matrix *a, vector *c);
 // -----------------------------------------------------------------
 
 
@@ -278,12 +211,6 @@ void left_su2_hit_n(su2_matrix *u, int p, int q, matrix *link);
 
 // In file r_su2_hit_a.c
 void right_su2_hit_a(su2_matrix *u, int p, int q, matrix *link);
-
-// In file l_su2_hit_n_f.c
-void left_su2_hit_n_f(su2_matrix *u, int p, int q, matrix_f *link);
-
-// In file r_su2_hit_a_f.c
-void right_su2_hit_a_f(su2_matrix *u, int p, int q, matrix_f *link);
 
 // In file dumpsu2.c
 void dumpsu2(su2_matrix *u);

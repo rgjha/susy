@@ -38,14 +38,10 @@ void setup_FQ();
 void setup_offset();
 void setup_qclosed_offset();
 void setup_rhmc();
-void fermion_rep();
-
-// Reconstruct NxN fermion matrices from N^2 vectors
-void reconstruct(vector *in, matrix_f *out);
-void reconstruct_star(vector *in, matrix_f *out);
 
 // Helper routines for action and force computations
 void compute_plaqdet();
+void compute_Uinv();
 void compute_DmuUmu();
 void compute_Fmunu();
 
@@ -90,10 +86,10 @@ void epsilon();
 
 // Basic Twist_Fermion and gauge field manipulations
 // May eventually move to libraries
-void dump_TF(Twist_Fermion *vec);
+void dump_TF(Twist_Fermion *in);
 void copy_TF(Twist_Fermion *src, Twist_Fermion *dest);
 void clear_TF(Twist_Fermion *dest);
-Real magsq_TF(Twist_Fermion *vec);
+Real magsq_TF(Twist_Fermion *in);
 complex TF_dot(Twist_Fermion *a, Twist_Fermion *b);
 void scalar_mult_sum_TF(Twist_Fermion *b, Real s, Twist_Fermion *c);
 void scalar_mult_add_TF(Twist_Fermion *a, Twist_Fermion *b, Real s,
@@ -101,8 +97,8 @@ void scalar_mult_add_TF(Twist_Fermion *a, Twist_Fermion *b, Real s,
 void scalar_mult_TF(Twist_Fermion *src, Real s, Twist_Fermion *dest);
 
 // Other routines in library_util.c that loop over all sites
-void gauge_field_copy_f(field_offset src, field_offset dest);
-void shiftmat(matrix_f *dat, matrix_f *temp, int dir);
+void gauge_field_copy(field_offset src, field_offset dest);
+void shiftmat(matrix *dat, matrix *temp, int dir);
 
 // Random gauge transformation for testing gauge invariance
 void random_gauge_trans(Twist_Fermion *TF);
@@ -110,14 +106,28 @@ void random_gauge_trans(Twist_Fermion *TF);
 // Determinant-related routines
 void measure_det();
 void widths();        // Widths of plaquette and det distributions
-complex find_det(matrix_f *Q);
-void det_project(matrix_f *in, matrix_f *out);
+complex find_det(matrix *Q);
+void det_project(matrix *in, matrix *out);
 
-// Adjugate matrix needed by det_force
-void adjugate(matrix_f *in, matrix_f *out);
+// Use LAPACK in determinant and matrix calculations
+// Compute LU decomposition of a complex matrix
+// http://www.physics.orst.edu/~rubin/nacphy/lapack/routines/zgetrf.html
+// First and second arguments are the dimensions of the matrix
+// Third argument is the LU-decomposed matrix
+// Fourth argument is the
+// Fifth argument is the LU decomposition pivot matrix
+// Final argument reports success or information about failure
+void zgetrf_(int *N1, int *N2, double *store, int *lda, int *ipiv, int *stat);
 
-// Matrix inverse is just adjugate divided by determinant
-void invert(matrix_f *in, matrix_f *out);
+// Invert a complex matrix given its LU decomposition
+// http://www.physics.orst.edu/~rubin/nacphy/lapack/routines/zgetri.html
+// First four and last arguments are defined above
+// Fifth argument is real workspace of size given by the sixth argument
+void zgetri_(int *N, double *store, int *lda, int *ipiv,
+             double *work, int *Nwork, int* stat);
+
+// Matrix inverse via LAPACK
+void invert(matrix *in, matrix *out);
 
 // Modified Wilson loops use invert and path
 void path(int *dir, int *sign, int length);
@@ -175,8 +185,8 @@ void hvy_pot_polar_loop();
 // Final argument reports success or information about failure
 void zheev_(char *doV, char *uplo, int *N1, double *store, int *N2,
             double *eigs, double *work, int *Nwork, double *Rwork, int *stat);
-void polar(matrix_f *in, matrix_f *u, matrix_f *P);
-void matrix_log(matrix_f *in, matrix_f *out);
+void polar(matrix *in, matrix *u, matrix *P);
+void matrix_log(matrix *in, matrix *out);
 
 // Monopole computation uses find_det
 void monopole();

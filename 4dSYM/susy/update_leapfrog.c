@@ -20,12 +20,13 @@ void update_uu(Real eps) {
 
   FORALLDIR(mu) {
     FORALLSITES(i, s)
-      scalar_mult_sum_matrix_f(&(s->mom[mu]), eps, &(s->linkf[mu]));
+      scalar_mult_sum_matrix(&(s->mom[mu]), eps, &(s->link[mu]));
   }
 
   // Update plaquette determinants, DmuUmu and Fmunu with new links
   // (Needs to be done before calling gauge_force)
   compute_plaqdet();
+  compute_Uinv();
   compute_DmuUmu();
   compute_Fmunu();
 }
@@ -66,9 +67,6 @@ int update_step(double *fnorm, double *gnorm,
       update_uu(eps);
     else                // Final u(t/2)
       update_uu(0.5 * eps);
-#ifndef PUREGAUGE
-    fermion_rep();
-#endif
   }
   return iters;
 }
@@ -92,8 +90,6 @@ int update() {
   }
 
   // Refresh the momenta
-  // Higher rep code using fermion_rep:
-  //   DIMFxDIMF link created from NCOLxNCOL linkf after each update
   ranmom();
 
   // Set up the fermion variables, if needed
@@ -126,7 +122,7 @@ int update() {
 #ifdef HMC_ALGORITHM
   Real xrandom;   // For accept/reject test
   // Copy link field to old_link
-  gauge_field_copy_f(F_OFFSET(linkf[0]), F_OFFSET(old_linkf[0]));
+  gauge_field_copy(F_OFFSET(link[0]), F_OFFSET(old_link[0]));
 #endif
   // Do microcanonical updating
   iters += update_step(fnorm, &gnorm, src, psim);
@@ -160,11 +156,11 @@ int update() {
   broadcast_float(&xrandom);
   if (exp(-change) < (double)xrandom) {
     if (traj_length > 0.0) {
-      gauge_field_copy_f(F_OFFSET(old_linkf[0]), F_OFFSET(linkf[0]));
+      gauge_field_copy(F_OFFSET(old_link[0]), F_OFFSET(link[0]));
       compute_plaqdet();
+      compute_Uinv();
       compute_DmuUmu();
       compute_Fmunu();
-      fermion_rep();
     }
     node0_printf("REJECT: delta S = %.4g start S = %.12g end S = %.12g\n",
                  change, startaction, endaction);

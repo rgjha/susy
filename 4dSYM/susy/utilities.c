@@ -41,7 +41,7 @@ void compute_plaqdet() {
   // Recall det[Udag] = (det[U])^*
   FORALLSITES(i, s) {
     FORALLDIR(a)
-      Tr_Uinv[a][i] = find_det(&(s->linkf[a]));
+      Tr_Uinv[a][i] = find_det(&(s->link[a]));
   }
 
   // Start first set of gathers (a = 0 and b = 1)
@@ -115,16 +115,32 @@ void compute_plaqdet() {
 
 
 // -----------------------------------------------------------------
+// Save U_a^{-1} and Udag_a^{-1} = (U_a^{-1})^dag at each site
+void compute_Uinv() {
+  register int i, mu;
+  register site *s;
+
+  FORALLSITES(i, s) {
+    FORALLDIR(mu) {
+      invert(&(s->link[mu]), &(Uinv[mu][i]));
+      adjoint(&(Uinv[mu][i]), &(Udag_inv[mu][i]));
+    }
+  }
+}
+// -----------------------------------------------------------------
+
+
+
+
+// -----------------------------------------------------------------
 // Separate routines for each term in the fermion operator
 // All called by fermion_op at the bottom of the file
 #ifdef VP
-void Dplus(vector *src[NUMLINK], vector *dest[NPLAQ]) {
+void Dplus(matrix *src[NUMLINK], matrix *dest[NPLAQ]) {
   register int i;
   register site *s;
   char **local_pt[2][4];
   int mu, nu, index, gather, flip = 0, a, b;
-  vector vtmp, *vec0, *vec2;
-  matrix *mat1, *mat3;
   msg_tag *tag0[2], *tag1[2], *tag2[2], *tag3[2];
 
   for (mu = 0; mu < 4; mu++) {
@@ -133,13 +149,13 @@ void Dplus(vector *src[NUMLINK], vector *dest[NPLAQ]) {
   }
 
   // Start first set of gathers (mu = 0 and nu = 1)
-  tag0[0] = start_gather_field(src[1], sizeof(vector),
+  tag0[0] = start_gather_field(src[1], sizeof(matrix),
                                goffset[0], EVENANDODD, local_pt[0][0]);
 
   tag1[0] = start_gather_site(F_OFFSET(link[0]), sizeof(matrix),
                               goffset[1], EVENANDODD, local_pt[0][1]);
 
-  tag2[0] = start_gather_field(src[0], sizeof(vector),
+  tag2[0] = start_gather_field(src[0], sizeof(matrix),
                                goffset[1], EVENANDODD, local_pt[0][2]);
 
   tag3[0] = start_gather_site(F_OFFSET(link[1]), sizeof(matrix),
@@ -159,14 +175,14 @@ void Dplus(vector *src[NUMLINK], vector *dest[NPLAQ]) {
           a = mu;
           b = nu + 1;
         }
-        tag0[gather] = start_gather_field(src[b], sizeof(vector), goffset[a],
+        tag0[gather] = start_gather_field(src[b], sizeof(matrix), goffset[a],
                                           EVENANDODD, local_pt[gather][0]);
 
         tag1[gather] = start_gather_site(F_OFFSET(link[a]), sizeof(matrix),
                                          goffset[b], EVENANDODD,
                                          local_pt[gather][1]);
 
-        tag2[gather] = start_gather_field(src[a], sizeof(vector), goffset[b],
+        tag2[gather] = start_gather_field(src[a], sizeof(matrix), goffset[b],
                                           EVENANDODD, local_pt[gather][2]);
 
         tag3[gather] = start_gather_site(F_OFFSET(link[b]), sizeof(matrix),
@@ -179,22 +195,21 @@ void Dplus(vector *src[NUMLINK], vector *dest[NPLAQ]) {
       wait_gather(tag2[flip]);
       wait_gather(tag3[flip]);
       FORALLSITES(i, s) {
-        vec0 = (vector *)(local_pt[flip][0][i]);
-        mat1 = (matrix *)(local_pt[flip][1][i]);
-        vec2 = (vector *)(local_pt[flip][2][i]);
-        mat3 = (matrix *)(local_pt[flip][3][i]);
-
         // Initialize dest[index][i]
-        mult_mat_vec(&(s->link[mu]), vec0, &(dest[index][i]));
-        scalar_mult_vector(&(dest[index][i]), s->bc1[mu], &(dest[index][i]));
+        scalar_mult_nn(&(s->link[mu]),
+                         (matrix *)(local_pt[flip][0][i]),
+                         s->bc1[mu], &(plaq_dest[index][i]));
 
         // Add or subtract the other three terms
-        mult_vec_mat_dif(&(src[nu][i]), mat1, &(dest[index][i]));
+        mult_nn_dif(&(src[nu][i]), (matrix *)(local_pt[flip][1][i]),
+                      &(plaq_dest[index][i]));
 
-        mult_mat_vec(&(s->link[nu]), vec2, &vtmp);
-        scalar_mult_dif_vector(&vtmp, s->bc1[nu], &(dest[index][i]));
+        scalar_mult_nn_dif(&(s->link[nu]),
+                             (matrix *)(local_pt[flip][2][i]),
+                             s->bc1[nu], &(plaq_dest[index][i]));
 
-        mult_vec_mat_sum(&(src[mu][i]), mat3, &(dest[index][i]));
+        mult_nn_sum(&(src[mu][i]), (matrix *)(local_pt[flip][3][i]),
+                      &(plaq_dest[index][i]));
       }
       cleanup_gather(tag0[flip]);
       cleanup_gather(tag1[flip]);
@@ -210,21 +225,22 @@ void Dplus(vector *src[NUMLINK], vector *dest[NPLAQ]) {
 
 
 // -----------------------------------------------------------------
-// Use tempvec[01] for temporary storage
+// Use tempmat and tempmat2 for temporary storage
 #ifdef VP
-void Dminus(vector *src[NPLAQ], vector *dest[NUMLINK]) {
+void Dminus(matrix *src[NPLAQ], matrix *dest[NUMLINK]) {
   register int i;
   register site *s;
   char **local_pt[2][2];
   int mu, nu, index, gather, flip = 0, a, b, next, opp_mu;
-  vector vtmp, *vec;
-  matrix *mat;
+  matrix *mat[2];
   msg_tag *tag0[2], *tag1[2];
 
   for (mu = 0; mu < 2; mu++) {
     local_pt[0][mu] = gen_pt[mu];
     local_pt[1][mu] = gen_pt[2 + mu];
   }
+  mat[0] = tempmat;
+  mat[1] = tempmat2;
 
   // Start first set of gathers (mu = 1 and nu = 0)
   index = plaq_index[1][0];
@@ -232,12 +248,11 @@ void Dminus(vector *src[NPLAQ], vector *dest[NUMLINK]) {
                               goffset[0], EVENANDODD, local_pt[0][0]);
 
   FORALLSITES(i, s) {   // mu = 1 > nu = 0
-    scalar_mult_vector(&(src[index][i]), -1.0, &vtmp);
-    mult_vec_mat(&vtmp, &(s->link[1]), &(tempvec[0][i]));
-    FORALLDIR(nu)
-      clearvec(&(dest[nu][i]));         // Initialize
+    scalar_mult_nn(&(src[index][i]), &(s->link[1]), -1.0, &(mat[0][i]));
+    FORALLDIR(mu)
+      clear_mat(&(dest[mu][i]));        // Initialize
   }
-  tag1[0] = start_gather_field(tempvec[0], sizeof(vector),
+  tag1[0] = start_gather_field(mat[0], sizeof(matrix),
                                goffset[1] + 1, EVENANDODD, local_pt[0][1]);
 
   // Main loop
@@ -267,15 +282,14 @@ void Dminus(vector *src[NPLAQ], vector *dest[NUMLINK]) {
 
         FORALLSITES(i, s) {
           if (a > b) {      // src is anti-symmetric under a <--> b
-            scalar_mult_vector(&(src[next][i]), -1.0, &vtmp);
-            mult_vec_mat(&vtmp, &(s->link[a]), &(tempvec[gather][i]));
+            scalar_mult_nn(&(src[next][i]), &(s->link[a]), -1.0,
+                             &(mat[gather][i]));
           }
           else {
-            mult_vec_mat(&(src[next][i]), &(s->link[a]),
-                         &(tempvec[gather][i]));
+            mult_nn(&(src[next][i]), &(s->link[a]), &(mat[gather][i]));
           }
         }
-        tag1[gather] = start_gather_field(tempvec[gather], sizeof(vector),
+        tag1[gather] = start_gather_field(mat[gather], sizeof(matrix),
                                           goffset[a] + 1, EVENANDODD,
                                           local_pt[gather][1]);
       }
@@ -285,14 +299,15 @@ void Dminus(vector *src[NPLAQ], vector *dest[NUMLINK]) {
       wait_gather(tag0[flip]);
       wait_gather(tag1[flip]);
       FORALLSITES(i, s) {
-        mat = (matrix *)(local_pt[flip][0][i]);
-        vec = (vector *)(local_pt[flip][1][i]);
         if (mu > nu)      // src is anti-symmetric under mu <--> nu
-          mult_mat_vec_dif(mat, &(src[index][i]), &(dest[nu][i]));
+          mult_nn_dif((matrix *)(local_pt[flip][0][i]), &(src[index][i]),
+                        &(dest[nu][i]));
         else
-          mult_mat_vec_sum(mat, &(src[index][i]), &(dest[nu][i]));
+          mult_nn_sum((matrix *)(local_pt[flip][0][i]), &(src[index][i]),
+                        &(dest[nu][i]));
 
-        scalar_mult_dif_vector(vec, s->bc1[opp_mu], &(dest[nu][i]));
+        scalar_mult_dif_matrix((matrix *)(local_pt[flip][1][i]),
+                               s->bc1[opp_mu], &(dest[nu][i]));
       }
       cleanup_gather(tag0[flip]);
       cleanup_gather(tag1[flip]);
@@ -308,14 +323,12 @@ void Dminus(vector *src[NPLAQ], vector *dest[NUMLINK]) {
 // -----------------------------------------------------------------
 // Add to dest instead of overwriting; note factor of 1/2
 #ifdef QCLOSED
-void DbplusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
+void DbplusPtoP(matrix *src[NPLAQ], matrix *dest[NPLAQ]) {
   register int i;
   register site *s;
   char **local_pt[2][4];
   int a, b, c, d, e, j, gather, next, flip = 0, i_ab, i_de;
-  Real tr, tr2;
-  vector *vec1, *vec2, vtmp;
-  matrix *mat0, *mat3;
+  Real tr;
   msg_tag *tag0[2], *tag1[2], *tag2[2], *tag3[2];
 
   for (a = 0; a < 4; a++) {
@@ -331,9 +344,9 @@ void DbplusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
   i_de = plaq_index[d][e];
   tag0[0] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                               DbpP_d1[0], EVENANDODD, local_pt[0][0]);
-  tag1[0] = start_gather_field(src[i_de], sizeof(vector),
+  tag1[0] = start_gather_field(src[i_de], sizeof(matrix),
                                DbpP_d2[0], EVENANDODD, local_pt[0][1]);
-  tag2[0] = start_gather_field(src[i_de], sizeof(vector),
+  tag2[0] = start_gather_field(src[i_de], sizeof(matrix),
                                DbpP_d1[0], EVENANDODD, local_pt[0][2]);
   tag3[0] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                               goffset[c] + 1, EVENANDODD, local_pt[0][3]);
@@ -351,10 +364,10 @@ void DbplusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
       tag0[gather] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                                        DbpP_d1[next], EVENANDODD,
                                        local_pt[gather][0]);
-      tag1[gather] = start_gather_field(src[i_de], sizeof(vector),
+      tag1[gather] = start_gather_field(src[i_de], sizeof(matrix),
                                         DbpP_d2[next], EVENANDODD,
                                         local_pt[gather][1]);
-      tag2[gather] = start_gather_field(src[i_de], sizeof(vector),
+      tag2[gather] = start_gather_field(src[i_de], sizeof(matrix),
                                         DbpP_d1[next], EVENANDODD,
                                         local_pt[gather][2]);
       tag3[gather] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
@@ -376,18 +389,13 @@ void DbplusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
     wait_gather(tag2[flip]);
     wait_gather(tag3[flip]);
     FORALLSITES(i, s) {
-      mat0 = (matrix *)(local_pt[flip][0][i]);
-      vec1 = (vector *)(local_pt[flip][1][i]);
-      vec2 = (vector *)(local_pt[flip][2][i]);
-      mat3 = (matrix *)(local_pt[flip][3][i]);
+      scalar_mult_na_sum((matrix *)(local_pt[flip][1][i]),
+                           (matrix *)(local_pt[flip][0][i]),
+                           tr * s->bc3[a][b][c], &(dest[i_ab][i]));
 
-      tr2 = tr * s->bc3[a][b][c];
-      mult_vec_adj_mat(vec1, mat0, &vtmp);
-      scalar_mult_sum_vector(&vtmp, tr2, &(dest[i_ab][i]));
-
-      tr2 = tr * s->bc2[a][b];
-      mult_adj_mat_vec(mat3, vec2, &vtmp);
-      scalar_mult_dif_vector(&vtmp, tr2, &(dest[i_ab][i]));
+      scalar_mult_an_dif((matrix *)(local_pt[flip][3][i]),
+                           (matrix *)(local_pt[flip][2][i]),
+                           tr * s->bc2[a][b], &(dest[i_ab][i]));
     }
     cleanup_gather(tag0[flip]);
     cleanup_gather(tag1[flip]);
@@ -404,14 +412,12 @@ void DbplusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
 // -----------------------------------------------------------------
 // Add to dest instead of overwriting; note factor of 1/2
 #ifdef QCLOSED
-void DbminusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
+void DbminusPtoP(matrix *src[NPLAQ], matrix *dest[NPLAQ]) {
   register int i, opp_a, opp_b, opp_c;
   register site *s;
   char **local_pt[2][4];
   int a, b, c, d, e, j, gather, next, flip = 0, i_ab, i_de;
-  Real tr, tr2;
-  vector *vec1, *vec2, vtmp;
-  matrix *mat0, *mat3;
+  Real tr;
   msg_tag *tag0[2], *tag1[2], *tag2[2], *tag3[2];
 
   for (a = 0; a < 4; a++) {
@@ -428,9 +434,9 @@ void DbminusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
 
   tag0[0] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                               DbmP_d1[0], EVENANDODD, local_pt[0][0]);
-  tag1[0] = start_gather_field(src[i_ab], sizeof(vector),
+  tag1[0] = start_gather_field(src[i_ab], sizeof(matrix),
                                DbmP_d2[0], EVENANDODD, local_pt[0][1]);
-  tag2[0] = start_gather_field(src[i_ab], sizeof(vector),
+  tag2[0] = start_gather_field(src[i_ab], sizeof(matrix),
                                DbmP_d1[0], EVENANDODD, local_pt[0][2]);
   tag3[0] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                               goffset[c] + 1, EVENANDODD, local_pt[0][3]);
@@ -447,10 +453,10 @@ void DbminusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
       tag0[gather] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
                                        DbmP_d1[next], EVENANDODD,
                                        local_pt[gather][0]);
-      tag1[gather] = start_gather_field(src[i_ab], sizeof(vector),
+      tag1[gather] = start_gather_field(src[i_ab], sizeof(matrix),
                                         DbmP_d2[next], EVENANDODD,
                                         local_pt[gather][1]);
-      tag2[gather] = start_gather_field(src[i_ab], sizeof(vector),
+      tag2[gather] = start_gather_field(src[i_ab], sizeof(matrix),
                                         DbmP_d1[next], EVENANDODD,
                                         local_pt[gather][2]);
       tag3[gather] = start_gather_site(F_OFFSET(link[c]), sizeof(matrix),
@@ -475,18 +481,13 @@ void DbminusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
     wait_gather(tag2[flip]);
     wait_gather(tag3[flip]);
     FORALLSITES(i, s) {
-      mat0 = (matrix *)(local_pt[flip][0][i]);
-      vec1 = (vector *)(local_pt[flip][1][i]);
-      vec2 = (vector *)(local_pt[flip][2][i]);
-      mat3 = (matrix *)(local_pt[flip][3][i]);
+      scalar_mult_na_sum((matrix *)(local_pt[flip][1][i]),
+                           (matrix *)(local_pt[flip][0][i]),
+                           tr * s->bc2[opp_a][opp_b], &(dest[i_de][i]));
 
-      tr2 = tr * s->bc2[opp_a][opp_b];
-      mult_vec_adj_mat(vec1, mat0, &vtmp);
-      scalar_mult_sum_vector(&vtmp, tr2, &(dest[i_de][i]));
-
-      tr2 = tr * s->bc3[opp_a][opp_b][opp_c];
-      mult_adj_mat_vec(mat3, vec2, &vtmp);
-      scalar_mult_dif_vector(&vtmp, tr2, &(dest[i_de][i]));
+      scalar_mult_an_dif((matrix *)(local_pt[flip][3][i]),
+                           (matrix *)(local_pt[flip][2][i]),
+                           tr * s->bc3[opp_a][opp_b][opp_c], &(dest[i_de][i]));
     }
     cleanup_gather(tag0[flip]);
     cleanup_gather(tag1[flip]);
@@ -505,27 +506,26 @@ void DbminusPtoP(vector *src[NPLAQ], vector *dest[NPLAQ]) {
 // bc1[mu](x) on psi_mu(x) eta(x + mu)
 // Add to dest instead of overwriting; note factor of 1/2
 #ifdef SV
-void DbplusStoL(vector *src, vector *dest[NUMLINK]) {
+void DbplusStoL(matrix *src, matrix *dest[NUMLINK]) {
   register int i;
   register site *s;
   int mu;
-  vector vtmp, *vec;
   msg_tag *tag[NUMLINK];
+  matrix tmat;
 
-  tag[0] = start_gather_field(src, sizeof(vector), goffset[0],
+  tag[0] = start_gather_field(src, sizeof(matrix), goffset[0],
                               EVENANDODD, gen_pt[0]);
   FORALLDIR(mu) {
     if (mu < NUMLINK - 1)     // Start next gather
-      tag[mu + 1] = start_gather_field(src, sizeof(vector), goffset[mu + 1],
+      tag[mu + 1] = start_gather_field(src, sizeof(matrix), goffset[mu + 1],
                                        EVENANDODD, gen_pt[mu + 1]);
 
     wait_gather(tag[mu]);
     FORALLSITES(i, s) {
-      vec = (vector *)(gen_pt[mu][i]);
-      mult_vec_adj_mat(vec, &(s->link[mu]), &vtmp);
-      scalar_mult_vector(&vtmp, s->bc1[mu], &vtmp);
-      mult_adj_mat_vec_dif(&(s->link[mu]), &(src[i]), &vtmp);
-      scalar_mult_sum_vector(&vtmp, 0.5, &(dest[mu][i]));
+      mult_na((matrix *)(gen_pt[mu][i]), &(s->link[mu]), &tmat);
+      scalar_mult_matrix(&tmat, s->bc1[mu], &tmat);
+      mult_an_dif(&(s->link[mu]), &(src[i]), &tmat);
+      scalar_mult_sum_matrix(&tmat, 0.5, &(dest[mu][i]));
     }
     cleanup_gather(tag[mu]);
   }
@@ -537,27 +537,25 @@ void DbplusStoL(vector *src, vector *dest[NUMLINK]) {
 
 // -----------------------------------------------------------------
 // Plaquette determinant coupling from site source to link destination
-//   T[a](x) * sum_b {D[b][a](x) + D[a][b](x - b)}
-// In the global case D is Tr[eta] * plaqdet,
+//   U^{-1}[a](x) * sum_b {D[b][a](x) + D[a][b](x - b)}
+// In the global case D is Tr[eta] * plaqdet, Tr[eta] = i sqrt(N) eta^D
 // In the local case D is Tr[eta] plaqdet (plaqdet - 1)^*
-// In both cases T is Tr[U^{-1} Lambda] and Tr[eta] = i sqrt(N) eta^D
+// In both cases T is Tr[U^{-1} Lambda] and
 // Assume compute_plaqdet() has already been run
-// Use tr_dest, Tr_Uinv[0] and tempdet for temporary storage
+// Use tr_dest and tempdet for temporary storage
 // bc1[b](x - b) = bc1[-b](x) on eta(x - b) psi_a(x)
 // Add negative to dest instead of overwriting
 // Negative sign is due to anti-commuting eta past psi
 #ifdef SV
-void detStoL(vector *src, vector *dest[NUMLINK]) {
+void detStoL(matrix *dest[NUMLINK]) {
   register int i;
   register site *s;
-  int a, b, opp_b, j, next;
-  complex tc, tc2, localGc;
+  int a, b, opp_b, next;
+  Real localG = -1.0 * C2 * G;
+  complex tc;
 #ifdef LINEAR_DET
-  CMULREAL(Gc, -0.5, localGc);            // Since not squared
-#else
-  CMULREAL(Gc, -1.0, localGc);
+  localG *= 0.5;                          // Since not squared
 #endif
-  matrix_f tmat;
   msg_tag *tag[NUMLINK];
 
   // Save Tr[eta(x)] plaqdet[a][b](x)
@@ -566,11 +564,11 @@ void detStoL(vector *src, vector *dest[NUMLINK]) {
     for (b = a + 1; b < NUMLINK; b++) {
       FORALLSITES(i, s) {
 #ifdef LINEAR_DET
-        CMUL(src[i].c[DIMF - 1], plaqdet[a][b][i], tempdet[a][b][i]);
-        CMUL(src[i].c[DIMF - 1], plaqdet[b][a][i], tempdet[b][a][i]);
+        CMUL(tr_eta[i], plaqdet[a][b][i], tempdet[a][b][i]);
+        CMUL(tr_eta[i], plaqdet[b][a][i], tempdet[b][a][i]);
 #else
-        CMUL(src[i].c[DIMF - 1], ZWstar[a][b][i], tempdet[a][b][i]);
-        CMUL(src[i].c[DIMF - 1], ZWstar[b][a][i], tempdet[b][a][i]);
+        CMUL(tr_eta[i], ZWstar[a][b][i], tempdet[a][b][i]);
+        CMUL(tr_eta[i], ZWstar[b][a][i], tempdet[b][a][i]);
 #endif
       }
     }
@@ -617,15 +615,10 @@ void detStoL(vector *src, vector *dest[NUMLINK]) {
       cleanup_gather(tag[b]);
     }
 
-    // Compute Tr[U_a^{-1} Lambda^j] times sum
+    // Multiply U_a^{-1} by sum, add to dest[a][i]
     FORALLSITES(i, s) {
-      invert(&(s->linkf[a]), &tmat);
-      CMUL(tr_dest[i], localGc, tc);
-      for (j = 0; j < DIMF; j++) {
-        tc2 = complextrace_nn_f(&tmat, &(Lambda[j]));
-        dest[a][i].c[j].real += tc.real * tc2.real - tc.imag * tc2.imag;
-        dest[a][i].c[j].imag += tc.imag * tc2.real + tc.real * tc2.imag;
-      }
+      CMULREAL(tr_dest[i], localG, tc);
+      c_scalar_mult_sum_mat(&(Uinv[a][i]), &tc, &(dest[a][i]));
     }
   }
 }
@@ -636,26 +629,21 @@ void detStoL(vector *src, vector *dest[NUMLINK]) {
 
 // -----------------------------------------------------------------
 // Scalar potential coupling from site source to link destination
-//   Udag[a](x) eta(x) (Tr[U_a(x) Udag_a(x)] / N - 1)
+//   Udag[a](x) Tr[eta(x)] (Tr[U_a(x) Udag_a(x)] / N - 1)
 // Add negative to dest instead of overwriting
 // Negative sign is due to anti-commuting eta past psi
 #ifdef SV
-void potStoL(vector *src, vector *dest[NUMLINK]) {
-  register int i, a, j;
+void potStoL(matrix *dest[NUMLINK]) {
+  register int i, a;
   register site *s;
-  Real tr;
-  complex tc, tc2;
+  Real tr, localB = one_ov_N * C2 * B * B;
+  complex tc;
 
   FORALLSITES(i, s) {
     FORALLDIR(a) {
-      tr = 1.0 - one_ov_N * realtrace_f(&(s->linkf[a]), &(s->linkf[a]));
-      CMULREAL(Bc, tr, tc);
-      CMUL(src[i].c[DIMF - 1], tc, tc2);
-      for (j = 0; j < DIMF; j++) {
-        tc = complextrace_na_f(&(Lambda[j]), &(s->linkf[a]));
-        dest[a][i].c[j].real += tc.real * tc2.real - tc.imag * tc2.imag;
-        dest[a][i].c[j].imag += tc.imag * tc2.real + tc.real * tc2.imag;
-      }
+      tr = 1.0 - one_ov_N * realtrace(&(s->link[a]), &(s->link[a]));
+      CMULREAL(tr_eta[i], tr * localB, tc);
+      c_scalar_mult_sum_mat_adj(&(s->link[a]), &tc, &(dest[a][i]));
     }
   }
 }
@@ -667,45 +655,51 @@ void potStoL(vector *src, vector *dest[NUMLINK]) {
 // -----------------------------------------------------------------
 // Term in action connecting the link fermions to the site fermion
 // Given src psi_a, dest is Dbar_a psi_a (Eq. 63 in the arXiv:1108.1503)
-// Use tempvec for temporary storage
+// Use tempmat and tempmat2 for temporary storage
 // bc1[OPP_LDIR(mu)](x) on eta(x - mu) psi_mu(x - mu)
 // Initialize dest; note factor of 1/2
 #ifdef SV
-void DbminusLtoS(vector *src[NUMLINK], vector *dest) {
+void DbminusLtoS(matrix *src[NUMLINK], matrix *dest) {
   register int i, mu, nu, opp_mu;
   register site *s;
+  int gather = 1, flip = 0;
+  matrix *mat[2];
   msg_tag *tag[NUMLINK];
 
+  mat[0] = tempmat;
+  mat[1] = tempmat2;
+
   FORALLSITES(i, s) {         // Set up first gather
-    clearvec(&(dest[i]));     // Initialize
-    mult_adj_mat_vec(&(s->link[0]), &(src[0][i]), &(tempvec[0][i]));
+    clear_mat(&(dest[i]));     // Initialize
+    mult_an(&(s->link[0]), &(src[0][i]), &(mat[0][i]));
   }
-  tag[0] = start_gather_field(tempvec[0], sizeof(vector),
+  tag[0] = start_gather_field(mat[0], sizeof(matrix),
                               goffset[0] + 1, EVENANDODD, gen_pt[0]);
 
   FORALLDIR(mu) {
     if (mu < NUMLINK - 1) {   // Start next gather
       nu = mu + 1;
-      FORALLSITES(i, s) {
-        mult_adj_mat_vec(&(s->link[nu]), &(src[nu][i]), &(tempvec[nu][i]));
-      }
-      tag[nu] = start_gather_field(tempvec[nu], sizeof(vector),
+      gather = (flip + 1) % 2;
+      FORALLSITES(i, s)
+        mult_an(&(s->link[nu]), &(src[nu][i]), &(mat[gather][i]));
+      tag[nu] = start_gather_field(mat[gather], sizeof(matrix),
                                    goffset[nu] + 1, EVENANDODD, gen_pt[nu]);
     }
 
     opp_mu = OPP_LDIR(mu);
     wait_gather(tag[mu]);
     FORALLSITES(i, s) {
-      scalar_mult_dif_vector((vector *)(gen_pt[mu][i]), s->bc1[opp_mu],
+      scalar_mult_dif_matrix((matrix *)(gen_pt[mu][i]), s->bc1[opp_mu],
                              &(dest[i]));
-      mult_vec_adj_mat_sum(&(src[mu][i]), &(s->link[mu]), &(dest[i]));
+      mult_na_sum(&(src[mu][i]), &(s->link[mu]), &(dest[i]));
     }
     cleanup_gather(tag[mu]);
+    flip = gather;
   }
 
   // Overall factor of 1/2
   FORALLSITES(i, s)
-    scalar_mult_vector(&(dest[i]), 0.5, &(dest[i]));
+    scalar_mult_matrix(&(dest[i]), 0.5, &(dest[i]));
 }
 #endif
 // -----------------------------------------------------------------
@@ -720,40 +714,27 @@ void DbminusLtoS(vector *src[NUMLINK], vector *dest) {
 // In both cases T is Tr[U^{-1} psi]
 // Assume compute_plaqdet() has already been run
 // bc1[b](x) on eta(x) psi_a(x + b)
-// Use Tr_Uinv for temporary storage
+// Use Tr_Uinv and tr_dest for temporary storage
 // Add to dest instead of overwriting
-// Has same sign as DbminusLtoS
+// Has same sign as DbminusLtoS (negative comes from generator normalization)
 #ifdef SV
-void detLtoS(vector *src[NUMLINK], vector *dest) {
+void detLtoS(matrix *src[NUMLINK], matrix *dest) {
   register int i;
   register site *s;
-  int a, b, j, next;
-  complex tc, tc2, localGc;
+  int a, b, next;
+  Real localG = C2 * G * sqrt((Real)NCOL);
+  complex tc, tc2;
 #ifdef LINEAR_DET
-  CMULREAL(Gc, 0.5, localGc);                  // Since not squared
+  localG *= 0.5;
 #endif
-  matrix_f tmat;
   msg_tag *tag[NUMLINK];
 
   // Prepare Tr[U_a^{-1} psi_a] = sum_j Tr[U_a^{-1} Lambda^j] psi_a^j
   // and save in Tr_Uinv[a]
-  FORALLDIR(a) {
-    FORALLSITES(i, s) {
-      invert(&(s->linkf[a]), &tmat);
-      // Initialize
-      tc = complextrace_nn_f(&tmat, &(Lambda[0]));
-      Tr_Uinv[a][i].real = tc.real * src[a][i].c[0].real
-                         - tc.imag * src[a][i].c[0].imag;
-      Tr_Uinv[a][i].imag = tc.imag * src[a][i].c[0].real
-                         + tc.real * src[a][i].c[0].imag;
-      for (j = 1; j < DIMF; j++) {
-        tc = complextrace_nn_f(&tmat, &(Lambda[j]));
-        Tr_Uinv[a][i].real += tc.real * src[a][i].c[j].real
-                            - tc.imag * src[a][i].c[j].imag;
-        Tr_Uinv[a][i].imag += tc.imag * src[a][i].c[j].real
-                            + tc.real * src[a][i].c[j].imag;
-      }
-    }
+  FORALLSITES(i, s) {
+    tr_dest[i] = cmplx(0.0, 0.0);   // Initialize
+    FORALLDIR(a)
+      Tr_Uinv[a][i] = complextrace_nn(&(Uinv[a][i]), &(src[a][i]));
   }
 
   // Start first gather of Tr[U_a^{-1} psi_a] from x + b for (0, 1)
@@ -780,7 +761,7 @@ void detLtoS(vector *src[NUMLINK], vector *dest) {
                                     goffset[0], EVENANDODD, gen_pt[0]);
       }
 
-      // Accumulate D[a][b](x) {T[b](x) + T[a](x + b)}
+      // Accumulate D[a][b](x) {T[b](x) + T[a](x + b)} in tr_dest
       wait_gather(tag[b]);
       FORALLSITES(i, s) {
         tc = *((complex *)(gen_pt[b][i]));
@@ -791,14 +772,17 @@ void detLtoS(vector *src[NUMLINK], vector *dest) {
 #else
         CMUL(ZWstar[a][b][i], tc2, tc);
 #endif
-        dest[i].c[DIMF - 1].real += tc.real * localGc.real
-                                  - tc.imag * localGc.imag;
-        dest[i].c[DIMF - 1].imag += tc.imag * localGc.real
-                                  + tc.real * localGc.imag;
+        // localG is purely imaginary...
+        tr_dest[i].real -= tc.imag * localG;
+        tr_dest[i].imag += tc.real * localG;
       }
       cleanup_gather(tag[b]);
     }
   }
+
+  // Add to dest (negative comes from generator normalization)
+  FORALLSITES(i, s)
+    c_scalar_mult_dif_mat(&(Lambda[DIMF - 1]), &(tr_dest[i]), &(dest[i]));
 }
 #endif
 // -----------------------------------------------------------------
@@ -808,26 +792,31 @@ void detLtoS(vector *src[NUMLINK], vector *dest) {
 // -----------------------------------------------------------------
 // Scalar potential coupling from link source to site destination
 //   sum_a (Tr[U_a(x) Udag_a(x)] / N - 1)^2 psi(x) Udag[a](x)
+// Use tr_dest for temporary storage
 // Add to dest instead of overwriting
-// Has same sign as DbminusLtoS
+// Has same sign as DbminusLtoS (negative comes from generator normalization)
 #ifdef SV
-void potLtoS(vector *src[NUMLINK], vector *dest) {
-  register int i, a, j;
+void potLtoS(matrix *src[NUMLINK], matrix *dest) {
+  register int i, a;
   register site *s;
   Real tr;
-  complex tc, tc2, tc3;
+  complex tc, localB = cmplx(0.0, sqrt(one_ov_N) * C2 * B * B);
 
   FORALLSITES(i, s) {
-    FORALLDIR(a) {
-      tr = one_ov_N * realtrace_f(&(s->linkf[a]), &(s->linkf[a])) - 1.0;
-      CMULREAL(Bc, tr, tc2);
-      for (j = 0; j < DIMF; j++) {
-        tc = complextrace_na_f(&(Lambda[j]), &(s->linkf[a]));
-        CMUL(tc, src[a][i].c[j], tc3);
-        dest[i].c[DIMF - 1].real += tc2.real * tc3.real - tc2.imag * tc3.imag;
-        dest[i].c[DIMF - 1].imag += tc2.imag * tc3.real + tc2.real * tc3.imag;
-      }
+    // Initialize tr_dest
+    tr = one_ov_N * realtrace(&(s->link[0]), &(s->link[0])) - 1.0;
+    tr_dest[i] = complextrace_na(&(src[0][i]), &(s->link[0]));
+    CMULREAL(tr_dest[i], tr, tr_dest[i]);
+    for (a = 1; a < NUMLINK; a++) {
+      tr = one_ov_N * realtrace(&(s->link[a]), &(s->link[a])) - 1.0;
+      tc = complextrace_na(&(src[a][i]), &(s->link[a]));
+      tr_dest[i].real += tr * tc.real;
+      tr_dest[i].imag += tr * tc.imag;
     }
+
+    // Add to dest (negative comes from generator normalization)
+    CMUL(tr_dest[i], localB, tc);
+    c_scalar_mult_dif_mat(&(Lambda[DIMF - 1]), &tc, &(dest[i]));
   }
 }
 #endif
@@ -839,62 +828,56 @@ void potLtoS(vector *src[NUMLINK], vector *dest) {
 // Twist_Fermion matrix--vector operation
 // Applies either the operator (sign = 1) or its adjoint (sign = -1)
 void fermion_op(Twist_Fermion *src, Twist_Fermion *dest, int sign) {
-  register int i, j, mu;
+  register int i, mu;
   register site *s;
 
-  // Copy src TwistFermion into fieldwise site, link and plaq fermions
-  // All of the latter are overwritten -- don't need to clear explicitly
+  // Copy src TwistFermion into fieldwise site, link and plaq fermions,
+  // overwriting all of the latter
   if (sign == 1) {
     FORALLSITES(i, s) {
-      for (j = 0; j < DIMF; j++)
-        site_src[i].c[j] = src[i].Fsite.c[j];
-      FORALLDIR(mu) {
-        for (j = 0; j < DIMF; j++)
-          link_src[mu][i].c[j] = src[i].Flink[mu].c[j];
-      }
-      for (mu = 0; mu < NPLAQ; mu++) {
-        for (j = 0; j < DIMF; j++)
-          plaq_src[mu][i].c[j] = src[i].Fplaq[mu].c[j];
-      }
+      mat_copy(&(src[i].Fsite), &(site_src[i]));
+      FORALLDIR(mu)
+        mat_copy(&(src[i].Flink[mu]), &(link_src[mu][i]));
+      for (mu = 0; mu < NPLAQ; mu++)
+        mat_copy(&(src[i].Fplaq[mu]), &(plaq_src[mu][i]));
     }
   }
   else if (sign == -1) {
     FORALLSITES(i, s) {
-      for (j = 0; j < DIMF; j++)
-        CONJG(src[i].Fsite.c[j], site_src[i].c[j]);
-      FORALLDIR(mu) {
-        for (j = 0; j < DIMF; j++)
-          CONJG(src[i].Flink[mu].c[j], link_src[mu][i].c[j]);
-      }
-      for (mu = 0; mu < NPLAQ; mu++) {
-        for (j = 0; j < DIMF; j++)
-          CONJG(src[i].Fplaq[mu].c[j], plaq_src[mu][i].c[j]);
-      }
+      adjoint(&(src[i].Fsite), &(site_src[i]));
+      FORALLDIR(mu)
+        adjoint(&(src[i].Flink[mu]), &(link_src[mu][i]));
+      for (mu = 0; mu < NPLAQ; mu++)
+        adjoint(&(src[i].Fplaq[mu]), &(plaq_src[mu][i]));
     }
   }
   else {
     node0_printf("Error: incorrect sign in fermion_op: %d\n", sign);
     terminate(1);
   }
+  FORALLSITES(i, s)
+    tr_eta[i] = trace(&(site_src[i]));
 
   // Assemble separate routines for each term in the fermion operator
 #ifdef VP
-  Dplus(link_src, plaq_dest);             // Initializes plaq_dest
-  Dminus(plaq_src, link_dest);            // Initializes link_dest
+  Dplus(link_src, plaq_dest);             // Overwrites plaq_dest
+  Dminus(plaq_src, link_dest);            // Overwrites link_dest
 #endif
 
 #ifdef SV
   DbplusStoL(site_src, link_dest);        // Adds to link_dest
 
   // Site-to-link plaquette determinant contribution if G is non-zero
+  // Only depends on Tr[eta(x)]
   if (doG)
-    detStoL(site_src, link_dest);         // Adds to link_dest
+    detStoL(link_dest);                   // Adds to link_dest
 
   // Site-to-link scalar potential contribution if B is non-zero
+  // Only depends on Tr[eta(x)]
   if (doB)
-    potStoL(site_src, link_dest);         // Adds to link_dest
+    potStoL(link_dest);                   // Adds to link_dest
 
-  DbminusLtoS(link_src, site_dest);       // Initializes site_dest
+  DbminusLtoS(link_src, site_dest);       // Overwrites site_dest
 
   // Link-to-site plaquette determinant contribution if G is non-zero
   if (doG)
@@ -913,36 +896,20 @@ void fermion_op(Twist_Fermion *src, Twist_Fermion *dest, int sign) {
   // Copy local plaquette, link and site fermions into dest TwistFermion
   if (sign == 1) {
     FORALLSITES(i, s) {
-      for (j = 0; j < DIMF; j++)
-        dest[i].Fsite.c[j] = site_dest[i].c[j];
-      FORALLDIR(mu) {
-        for (j = 0; j < DIMF; j++)
-          dest[i].Flink[mu].c[j] = link_dest[mu][i].c[j];
-      }
-      for (mu = 0; mu < NPLAQ; mu++) {
-        for (j = 0; j < DIMF; j++)
-          dest[i].Fplaq[mu].c[j] = plaq_dest[mu][i].c[j];
-      }
+      mat_copy(&(site_dest[i]), &(dest[i].Fsite));
+      FORALLDIR(mu)
+        mat_copy(&(link_dest[mu][i]), &(dest[i].Flink[mu]));
+      for (mu = 0; mu < NPLAQ; mu++)
+        mat_copy(&(plaq_dest[mu][i]), &(dest[i].Fplaq[mu]));
     }
   }
   else if (sign == -1) {    // Both negate and conjugate
     FORALLSITES(i, s) {
-      for (j = 0; j < DIMF; j++) {
-        dest[i].Fsite.c[j].real = -site_dest[i].c[j].real;
-        dest[i].Fsite.c[j].imag = site_dest[i].c[j].imag;
-      }
-      FORALLDIR(mu) {
-        for (j = 0; j < DIMF; j++) {
-          dest[i].Flink[mu].c[j].real = -link_dest[mu][i].c[j].real;
-          dest[i].Flink[mu].c[j].imag = link_dest[mu][i].c[j].imag;
-        }
-      }
-      for (mu = 0; mu < NPLAQ; mu++) {
-        for (j = 0; j < DIMF; j++) {
-          dest[i].Fplaq[mu].c[j].real = -plaq_dest[mu][i].c[j].real;
-          dest[i].Fplaq[mu].c[j].imag = plaq_dest[mu][i].c[j].imag;
-        }
-      }
+      neg_adjoint(&(site_dest[i]), &(dest[i].Fsite));
+      FORALLDIR(mu)
+        neg_adjoint(&(link_dest[mu][i]), &(dest[i].Flink[mu]));
+      for (mu = 0; mu < NPLAQ; mu++)
+        neg_adjoint(&(plaq_dest[mu][i]), &(dest[i].Fplaq[mu]));
     }
   }
 }

@@ -160,11 +160,11 @@ int main(int argc, char *argv[]) {
       max_plaq = local_plaquette(&ss_plaq, &st_plaq);   // Prints out MIN_PLAQ
       node0_printf(" %.8g %.8g %.8g\n", ss_plaq, st_plaq, max_plaq);
 
-      // Overwrite s->linkf
-      // Save unsmeared links in Uinv (mom and f_U both already used)
+      // Overwrite s->link
+      // Save unsmeared links in UpsiU (mom and f_U both already used)
       FORALLDIR(dir) {
         FORALLSITES(i, s)
-          mat_copy_f(&(s->linkf[dir]), &(Uinv[dir][i]));
+          mat_copy(&(s->link[dir]), &(UpsiU[dir][i]));
       }
       if (smearflag == STOUT_SMEAR)
         stout_smear(Nsmear, alpha);
@@ -176,6 +176,7 @@ int main(int argc, char *argv[]) {
 
       // Update plaquette determinants, DmuUmu and Fmunu with smeared links
       compute_plaqdet();
+      compute_Uinv();
       compute_DmuUmu();
       compute_Fmunu();
 #endif
@@ -217,7 +218,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef CORR
-      // R symmetry transformations -- use find_det and adjugate
+      // R symmetry transformations -- uses LAPACK invert
       rsymm();
 
       // Measure density of monopole world lines in non-diagonal cubes
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
         plaquette(&ss_plaq, &st_plaq);    // To be printed below
         FORALLSITES(i, s) {
           FORALLDIR(dir)
-            mat_copy_f(&(s->linkf[dir]), &(s->mom[dir]));
+            mat_copy(&(s->link[dir]), &(s->mom[dir]));
         }
 
         node0_printf("Fixing to Coulomb gauge...\n");
@@ -266,25 +267,25 @@ int main(int argc, char *argv[]) {
       // Save and restore links overwritten by polar projection
       // Don't use mom[TUP], which is already storing the un-fixed links
       FORALLSITES(i, s)
-        mat_copy_f(&(s->linkf[TUP]), &(s->f_U[TUP]));
+        mat_copy(&(s->link[TUP]), &(s->f_U[TUP]));
       hvy_pot_polar();
       FORALLSITES(i, s)
-        mat_copy_f(&(s->f_U[TUP]), &(s->linkf[TUP]));
+        mat_copy(&(s->f_U[TUP]), &(s->link[TUP]));
 
       // Restore the un-fixed links to be written to disk if requested
       if (fixflag == COULOMB_GAUGE_FIX) {
         FORALLSITES(i, s) {
           FORALLDIR(dir)
-            mat_copy_f(&(s->mom[dir]), &(s->linkf[dir]));
+            mat_copy(&(s->mom[dir]), &(s->link[dir]));
         }
       }
 #endif
 
 #ifdef SMEAR
-      // Restore unsmeared links from Uinv
+      // Restore unsmeared links from UpsiU
       FORALLDIR(dir) {
         FORALLSITES(i, s)
-          mat_copy_f(&(Uinv[dir][i]), &(s->linkf[dir]));
+          mat_copy(&(UpsiU[dir][i]), &(s->link[dir]));
       }
 #endif
     }

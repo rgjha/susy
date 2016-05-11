@@ -16,9 +16,9 @@
 // -----------------------------------------------------------------
 // Twist_Fermion struct
 typedef struct {
-  vector Fsite;
-  vector Flink[NUMLINK];
-  vector Fplaq[NPLAQ];
+  matrix Fsite;
+  matrix Flink[NUMLINK];
+  matrix Fplaq[NPLAQ];
 } Twist_Fermion;
 // -----------------------------------------------------------------
 
@@ -36,17 +36,15 @@ typedef struct {
   double_prn site_prn;
 #endif
 
-  matrix_f linkf[NUMLINK];    // Gauge links
-  matrix link[NUMLINK];       // Adjoint links
+  matrix link[NUMLINK];       // Gauge links
 
 #ifdef HMC_ALGORITHM
-  matrix_f old_linkf[NUMLINK];  // For accept/reject
+  matrix old_link[NUMLINK];   // For accept/reject
 #endif
 
   // Momentum matrices in each direction are just U(N) matrices
   // as opposed to anti-hermitian matrices
-  matrix_f mom[NUMLINK];
-  matrix_f f_U[NUMLINK];        // Force matrices
+  matrix mom[NUMLINK], f_U[NUMLINK];        // Force matrices
 
   // Boundary conditions -- many unused
   Real bc1[2 * NUMLINK], bc2[2 * NUMLINK][2 * NUMLINK];
@@ -77,7 +75,7 @@ EXTERN int warms, trajecs, niter, propinterval;
 EXTERN Real traj_length;
 
 // U(N) generators, epsilon tensor
-EXTERN matrix_f Lambda[DIMF];
+EXTERN matrix Lambda[DIMF];
 EXTERN Real perm[NUMLINK][NUMLINK][NUMLINK][NUMLINK][NUMLINK];
 
 // Translate (mu, nu) to linear index of anti-symmetric matrix
@@ -135,33 +133,28 @@ EXTERN int FQ_lookup[NTERMS][NUMLINK];
 
 // Persistent site, link and plaq fermions for matrix--vector operation
 // Used in fermion_op and assemble_fermion_force
-EXTERN vector *site_src, *link_src[NUMLINK], *plaq_src[NPLAQ];
-EXTERN vector *site_dest, *link_dest[NUMLINK], *plaq_dest[NPLAQ];
-EXTERN matrix_f *site_mat, *link_mat[NUMLINK], *plaq_mat[NPLAQ];
-EXTERN matrix_f *site_pmat, *link_pmat[NUMLINK], *plaq_pmat[NPLAQ];
+EXTERN matrix *site_src, *link_src[NUMLINK], *plaq_src[NPLAQ];
+EXTERN matrix *site_dest, *link_dest[NUMLINK], *plaq_dest[NPLAQ];
 
 // For convenience in calculating action and force
 // May be wasteful of space
 EXTERN Real one_ov_N;
-EXTERN complex Gc, Bc, minus1;
+EXTERN complex minus1, *tr_eta;
 EXTERN complex *tr_dest, *Tr_Uinv[NUMLINK], *plaqdet[NUMLINK][NUMLINK];
 EXTERN complex *ZWstar[NUMLINK][NUMLINK], *tempdet[NUMLINK][NUMLINK];
 #ifndef LINEAR_DET
 EXTERN complex *tempZW[NUMLINK][NUMLINK];
 #endif
-EXTERN matrix_f *DmuUmu, *Fmunu[NPLAQ], unit;
-EXTERN matrix_f *Uinv[NUMLINK], *Udag_inv[NUMLINK], *UpsiU[NUMLINK];
+EXTERN matrix *DmuUmu, *Fmunu[NPLAQ];
+EXTERN matrix *Uinv[NUMLINK], *Udag_inv[NUMLINK], *UpsiU[NUMLINK];
 
-// Temporary vectors, matrices and Twist_Fermion
-EXTERN vector *tempvec[NUMLINK], *tempvec2;
-EXTERN matrix_f *tempmat, *tempmat2, *staple;
+// Temporary matrices and Twist_Fermion
+EXTERN matrix *tempmat, *tempmat2, *staple;
 EXTERN Twist_Fermion *tempTF;
 
-#if (NCOL > 4)
 // Arrays to be used by LAPACK in determinant.c
 EXTERN int *ipiv;
 EXTERN double *store, *work;
-#endif
 
 EXTERN gauge_file *startlat_p;
 EXTERN gauge_file *savelat_p;
@@ -180,11 +173,11 @@ EXTERN char **gen_pt[N_POINTERS];
 #define N_B 2
 #define N_K 3    // N_B * (N_B + 1) / 2
 // Multiple scalar fields and their bilinear traces
-EXTERN matrix_f *Ba[N_B][NUMLINK];
+EXTERN matrix *Ba[N_B][NUMLINK];
 EXTERN double *traceBB[N_K][NUMLINK][NUMLINK];
 
 // Ensemble averages and volume averages for subtracting
-EXTERN double vevK[N_K], volS[N_K], volK[N_K];
+EXTERN double vevK[N_K], vevS[N_K], volK[N_K], volS[N_K];
 
 // Structs for operators and correlators with either subtraction
 typedef struct {
