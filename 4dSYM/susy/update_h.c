@@ -14,29 +14,29 @@
 // Assume compute_plaqdet(), compute_DmuUmu()
 // and compute_Fmunu() have already been run
 double gauge_force(Real eps) {
-  register int i, mu, nu;
-  register site *s;
-  char **local_pt[2][2];
-  int a, b, gather, flip = 0, index, next;
-  double returnit = 0.0;
-  complex tc, tc2;
-  matrix tmat, tmat2, *mat[2];
-  msg_tag *tag[NUMLINK], *tag0[2], *tag1[2];
-
-  // Three contributions from d^2 term
-  // All three terms need a factor of C2
-  // First we have the finite difference operator derivative times DmuUmu
-  // Ubar_a(x) DmuUmu(x) - DmuUmu(x + a) Ubar_a(x)
-  tag[0] = start_gather_field(DmuUmu, sizeof(matrix),
-                              goffset[0], EVENANDODD, gen_pt[0]);
-  FORALLDIR(mu) {
-    if (mu < NUMLINK - 1)     // Start next gather
-      tag[mu + 1] = start_gather_field(DmuUmu, sizeof(matrix),
-                                       goffset[mu + 1], EVENANDODD,
-                                       gen_pt[mu + 1]);
-
-    wait_gather(tag[mu]);
-    FORALLSITES(i, s) {
+    register int i, mu, nu;
+    register site *s;
+    char **local_pt[2][2];
+    int a, b, gather, flip = 0, index, next;
+    double returnit = 0.0;
+    complex tc, tc2;
+    matrix tmat, tmat2, *mat[2];
+    msg_tag *tag[NUMLINK], *tag0[2], *tag1[2];
+    
+    // Three contributions from d^2 term
+    // All three terms need a factor of C2
+    // First we have the finite difference operator derivative times DmuUmu
+    // Ubar_a(x) DmuUmu(x) - DmuUmu(x + a) Ubar_a(x)
+    tag[0] = start_gather_field(DmuUmu, sizeof(matrix),
+                                goffset[0], EVENANDODD, gen_pt[0]);
+    FORALLDIR(mu) {
+        if (mu < NUMLINK - 1)     // Start next gather
+            tag[mu + 1] = start_gather_field(DmuUmu, sizeof(matrix),
+                                             goffset[mu + 1], EVENANDODD,
+                                             gen_pt[mu + 1]);
+        
+        wait_gather(tag[mu]);
+        FORALLSITES(i, s) {
         
       #ifdef SLNC_TRUNCATION
       mult_an(&(s->link[mu]), &(DmuUmu[i]), &tmat);
@@ -52,6 +52,103 @@ double gauge_force(Real eps) {
     }
     cleanup_gather(tag[mu]);
   }
+    
+    // Second we have the plaquette determinant derivative contribution
+    //   U_mu^{-1}(x) 2G sum_nu {D[nu][mu](x) + D[mu][nu](x-nu)}
+    // In the global case D is Tr[DmuUmu] plaqdet[mu][nu]
+    // In the local case D is 2Tr[DmuUmu] ZWstar[mu][nu]
+    // In both cases we save D in tempdet[mu][nu]
+    // Only compute if G is non-zero
+    // Use tr_dest for temporary storage
+    if (doG) {
+        FORALLSITES(i, s) {
+            tc = trace(&DmuUmu[i]);
+            FORALLDIR(mu) {
+                for (nu = mu + 1; nu < NUMLINK; nu++) {
+#ifdef LINEAR_DET
+                    CMUL(tc, plaqdet[mu][nu][i], tempdet[mu][nu][i]);
+                    CMUL(tc, plaqdet[nu][mu][i], tempdet[nu][mu][i]);
+#else
+                    CMUL(tc, ZWstar[mu][nu][i], tempdet[mu][nu][i]);
+                    CMUL(tc, ZWstar[nu][mu][i], tempdet[nu][mu][i]);
+#endif
+                }
+            }
+        }
+        
+        // Start first gather (mu = 0 and nu = 1), labelled by nu
+        // Gather D[mu][nu] from x - nu
+        tag[1] = start_gather_field(tempdet[0][1], sizeof(complex),
+                                    goffset[1] + 1, EVENANDODD, gen_pt[1]);
+        
+        // Main loop
+        FORALLDIR(mu) {
+            // Zero tr_dest to hold sum
+            FORALLSITES(i, s)
+            tr_dest[i] = cmplx(0.0, 0.0);
+            
+            FORALLDIR(nu) {
+                if (mu == nu)
+                    continue;
+                
+                if (mu < NUMLINK - 1 || nu < NUMLINK - 2) { // Start next gather
+                    if (nu == NUMLINK - 1) {
+                        a = mu + 1;
+                        b = 0;
+                    }
+                    else if (nu == mu - 1) {
+                        a = mu;
+                        b = nu + 2;
+                    }
+                    else {
+                        a = mu;
+                        b = nu + 1;
+                    }
+                    tag[b] = start_gather_field(tempdet[a][b], sizeof(complex),
+                                                goffset[b] + 1, EVENANDODD,
+                                                gen_pt[b]);
+                }
+                
+                // Add D[nu][mu](x) to sum while gather runs
+                FORALLSITES(i, s)
+                CSUM(tr_dest[i], tempdet[nu][mu][i]);
+                
+                // Add D[mu][nu](x - nu) to sum
+                wait_gather(tag[nu]);
+                FORALLSITES(i, s)
+                CSUM(tr_dest[i], *((complex *)(gen_pt[nu][i])));
+                cleanup_gather(tag[nu]);
+            }
+            
+            // Now add to force
+            FORALLSITES(i, s) {
+#ifdef LINEAR_DET
+                CMULREAL(tr_dest[i], G, tc);
+#else
+                CMULREAL(tr_dest[i], 2.0 * G, tc);
+#endif
+                c_scalar_mult_sum_mat(&(Uinv[mu][i]), &tc, &(s->f_U[mu]));
+            }
+        }
+    }
+    
+    
+    // Third we have the scalar potential derivative contribution
+    //   Udag_mu(x) 2B^2/N Tr[DmuUmu](x) Y(x)
+    // where Y(x) = Tr[U_mu(x) Udag_mu(x)] / N - 1
+    // Only compute if B is non-zero
+    if (doB) {
+        Real tr, twoBSqOvN = 2.0 * one_ov_N * B * B;
+        
+        FORALLSITES(i, s) {
+            tc = trace(&DmuUmu[i]);
+            FORALLDIR(mu) {
+                tr = one_ov_N * realtrace(&(s->link[mu]), &(s->link[mu])) - 1.0;
+                CMULREAL(tc, twoBSqOvN * tr, tc2);
+                c_scalar_mult_sum_mat_adj(&(s->link[mu]), &tc2, &(s->f_U[mu]));
+            }
+        }
+    }
 
   // Overall factor of C2 on all three potential d^2 contributions
   if (C2 - 1.0 > IMAG_TOL) {
