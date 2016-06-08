@@ -291,10 +291,28 @@ double gauge_force(Real eps) {
 
   // Finally take adjoint and update the momentum
   // Subtract to reproduce -Adj(f_U)
-  FORALLSITES(i, s) {
-    FORALLDIR(mu)
-      scalar_mult_dif_adj_matrix(&(s->f_U[mu]), eps, &(s->mom[mu]));
+  
+  #ifdef SLNC_TRUNCATION
+    
+    FORALLSITES(i, s) {
+      FORALLDIR(mu){
+          
+      adjoint(&(s->f_U[mu]),&tmat3);
+      mat_copy(&tmat3,&(s->f_U[mu]));
+      tc = trace(&(s->f_U[mu]));
+      CMULREAL(tc,-1.0*one_ov_N,tc);
+      c_scalar_add_diag(&(s->f_U[mu]), &tc);
+      scalar_mult_dif_matrix(&(s->f_U[mu]), eps, &(s->mom[mu]));     // Subtract the residual trace piece //
+
+      }
   }
+    
+#else 
+    FORALLSITES(i, s) {
+        FORALLDIR(mu)
+    scalar_mult_dif_adj_matrix(&(s->f_U[mu]), eps, &(s->mom[mu]));
+    }
+#endif
 
   // Compute average gauge force
   FORALLSITES(i, s) {
@@ -1392,12 +1410,28 @@ double fermion_force(Real eps, Twist_Fermion *src, Twist_Fermion **sol) {
   // Opposite sign as to gauge force,
   // because dS_G / dU = 2F_g while ds_F / dU = -2F_f
   // Move negation here as well, though adjoint remains above
+  #ifdef SLNC_TRUNCATION
   FORALLSITES(i, s) {
-    FORALLDIR(mu) {
+    FORALLDIR(mu)   {
+        
+      tc = trace(&(fullforce[mu][i]));
+      CMULREAL(tc,-1*one_ov_N,tc);
+      c_scalar_add_diag(&(fullforce[mu][i]), &tc);
       scalar_mult_dif_matrix(&(fullforce[mu][i]), eps, &(s->mom[mu]));
       returnit += realtrace(&(fullforce[mu][i]), &(fullforce[mu][i]));
     }
   }
+#else 
+    FORALLSITES(i, s) {
+        FORALLDIR(mu) {
+            scalar_mult_dif_matrix(&(fullforce[mu][i]), eps, &(s->mom[mu]));
+            returnit += realtrace(&(fullforce[mu][i]), &(fullforce[mu][i]));
+        }
+    }
+    
+#endif
+
+
   g_doublesum(&returnit);
 
   free(fullforce);
