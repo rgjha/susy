@@ -26,6 +26,9 @@ int initial_set() {
            NCOL, DIMF);
     printf("Microcanonical simulation with refreshing\n");
     printf("Machine = %s, with %d nodes\n", machine_type(), numnodes());
+#ifdef SLNC_TRUNCATION
+      printf("Truncated SL(N,C) theory (DIMF=Nc*Nc -1) \n");
+#endif 
 #ifdef HMC_ALGORITHM
     printf("Hybrid Monte Carlo algorithm\n");
 #endif
