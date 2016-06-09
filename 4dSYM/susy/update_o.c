@@ -52,15 +52,6 @@ void update_uu(Real eps) {
 
             FORALLDIR(mu) {
                 
-            tc = trace(&(s->mom[mu]));
-            CMULREAL(tc,-1*one_ov_N,tc);
-            c_scalar_add_diag(&s->mom[mu], &tc);
-            
-            tr = trace(&(s->mom[mu])).real;
-            if(tr > SQ_TOL){
-            node0_printf(" Momentum is not traceless %.8g\n", tr);
-            }
-
 
             mult_nn(&(s->mom[mu]),&(s->link[mu]),&tmat);
             scalar_mult_add_matrix(&(s->link[mu]), &tmat, t8, &tmat2);
