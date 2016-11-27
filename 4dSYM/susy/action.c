@@ -99,7 +99,7 @@ void compute_DmuUmu() {
 
 // -----------------------------------------------------------------
 // For the gauge action and force, compute at each site
-//   U_mu(x) * U_mu(x + mu) - Udag_nu(x) * U_mu(x + nu)
+//   U_mu(x) * U_nu(x + mu) - U_nu(x) * U_mu(x + nu)
 // Use tempmat and tempmat2 as temporary storage
 void compute_Fmunu() {
   register int i;
