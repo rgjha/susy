@@ -7,6 +7,31 @@
 
 
 // -----------------------------------------------------------------
+// Remove the trace of the given Twist_Fermion
+void TF_trace_sub(Twist_Fermion *a) {
+  register int i;
+  complex sum, tc;
+
+  tc = trace(&(a->Fsite));
+  CMULREAL(tc, -1.0 * one_ov_N, tc);
+  c_scalar_add_diag(&(a->Fsite), &tc);
+
+  FORALLDIR(i) {
+    tc = trace(&(a->Flink[i]));
+    CMULREAL(tc, -1.0 * one_ov_N, tc);
+    c_scalar_add_diag(&(a->Flink[i]), &tc);
+  }
+  for (i = 0; i < NPLAQ; i++) {
+    tc = trace(&(a->Fplaq[i]));
+    CMULREAL(tc, -1.0 * one_ov_N, tc);
+    c_scalar_add_diag(&(a->Fplaq[i]), &tc);
+  }
+}
+// -----------------------------------------------------------------
+
+
+
+// -----------------------------------------------------------------
 // Construct gaussian random momentum matrices
 // as sum of U(N) generators with gaussian random coefficients
 void ranmom() {
