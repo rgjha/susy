@@ -309,7 +309,7 @@ int readin(int prompt) {
     // Error per site for conjugate gradient
     IF_OK {
       status += get_f(stdin, prompt, "error_per_site", &x);
-      par_buf.rsqmin = x;
+      par_buf.rsqmin = x*x;
     }
 
 #ifdef BILIN
