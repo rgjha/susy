@@ -22,15 +22,13 @@
 
 // -----------------------------------------------------------------
 // Susy stuff
-//#define SLNC_TRUNCATION // Force the gauge group to be SU(N), not tested extensively //
-#define EIG_POT           // Single rather than double-trace scalar potential
+//#define EIG_POT           // Single rather than double-trace scalar potential
                           // Single-trace case is not actively tested!!!
 #define LINEAR_DET        // det-1 rather than |det-1|^2
                           // |det-1|^2 is not actively tested!!!
 #define SV                // Site/vector terms in action
 #define VP                // Vector/plaquette terms in action
-//#define PUREGAUGE
-#define QCLOSED           // Q-closed terms in action        //
+#define QCLOSED           // Q-closed terms in action
 //#define DEBUG_CHECK       // Print lambdas, offsets, etc.
 
 #define NQLINK 28         // Number of offsets for Q-closed terms
@@ -48,6 +46,15 @@
 
 // -----------------------------------------------------------------
 // Measurement stuff
+// Gauge fixing options
+#define NO_GAUGE_FIX 30
+#define COULOMB_GAUGE_FIX 31
+
+// Smearing options
+#define NO_SMEAR 40
+#define STOUT_SMEAR 41
+#define APE_SMEAR 42
+
 // Threshold to print warning about non-zero imaginary components
 // of quantities expected to be real
 #define IMAG_TOL 1.0e-8

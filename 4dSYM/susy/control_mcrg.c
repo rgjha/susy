@@ -4,11 +4,7 @@
 // Wilson loops and discrete R symmetry observables
 #define CONTROL
 #include "susy_includes.h"
-// -----------------------------------------------------------------
 
-
-
-// -----------------------------------------------------------------
 int main(int argc, char *argv[]) {
   register int i;
   register site *s;
@@ -76,11 +72,11 @@ int main(int argc, char *argv[]) {
   linktr_ave = link_trace(linktr, &linktr_width,
                           link_det, &det_ave, &det_width);
   node0_printf("FLINK");
-  for (dir = XUP; dir < NUMLINK; dir++)
+  FORALLDIR(dir)
     node0_printf(" %.6g", linktr[dir]);
   node0_printf(" %.6g %.6g\n", linktr_ave, linktr_width);
   node0_printf("FLINK_DET");
-  for (dir = XUP; dir < NUMLINK; dir++)
+  FORALLDIR(dir)
     node0_printf(" %.6g", link_det[dir]);
   node0_printf(" %.6g %.6g\n", det_ave, det_width);
 
@@ -100,12 +96,12 @@ int main(int argc, char *argv[]) {
 
   // Full and polar-projected Wilson lines in all five basis dirs
   node0_printf("LINES      ");
-  for (dir = XUP; dir < NUMLINK; dir++) {
+  FORALLDIR(dir) {
     plp = ploop(dir, NODET, &plpMod);
     node0_printf(" %.6g %.6g", plp.real, plp.imag);
   }
   node0_printf("\nLINES_POLAR");
-  for (dir = XUP; dir < NUMLINK; dir++) {
+  FORALLDIR(dir) {
     plp = ploop(dir, YESDET, &plpMod);
     node0_printf(" %.6g %.6g", plp.real, plp.imag);
   }
@@ -123,11 +119,11 @@ int main(int argc, char *argv[]) {
   linktr_ave = link_trace(linktr, &linktr_width,
                           link_det, &det_ave, &det_width);
   node0_printf("BFLINK 0 0");
-  for (dir = XUP; dir < NUMLINK; dir++)
+  FORALLDIR(dir)
     node0_printf(" %.6g", linktr[dir]);
   node0_printf(" %.6g %.6g\n", linktr_ave, linktr_width);
   node0_printf("BFLINK_DET 0 0");
-  for (dir = XUP; dir < NUMLINK; dir++)
+  FORALLDIR(dir)
     node0_printf(" %.6g", link_det[dir]);
   node0_printf(" %.6g %.6g\n", det_ave, det_width);
 
@@ -196,11 +192,11 @@ int main(int argc, char *argv[]) {
     linktr_ave = link_trace(linktr, &linktr_width,
                             link_det, &det_ave, &det_width);
     node0_printf("BFLINK %d 0", ismear);
-    for (dir = XUP; dir < NUMLINK; dir++)
+    FORALLDIR(dir)
       node0_printf(" %.6g", linktr[dir]);
     node0_printf(" %.6g %.6g\n", linktr_ave, linktr_width);
     node0_printf("BFLINK_DET %d 0", ismear);
-    for (dir = XUP; dir < NUMLINK; dir++)
+    FORALLDIR(dir)
       node0_printf(" %.6g", link_det[dir]);
     node0_printf(" %.6g %.6g\n", det_ave, det_width);
 
@@ -252,11 +248,11 @@ int main(int argc, char *argv[]) {
     linktr_ave = link_trace(linktr, &linktr_width,
                             link_det, &det_ave, &det_width);
     node0_printf("BFLINK 0 %d", bl);
-    for (dir = XUP; dir < NUMLINK; dir++)
+    FORALLDIR(dir)
       node0_printf(" %.6g", linktr[dir]);
     node0_printf(" %.6g %.6g\n", linktr_ave, linktr_width);
     node0_printf("BFLINK_DET 0 %d", bl);
-    for (dir = XUP; dir < NUMLINK; dir++)
+    FORALLDIR(dir)
       node0_printf(" %.6g", link_det[dir]);
     node0_printf(" %.6g %.6g\n", det_ave, det_width);
 
@@ -321,11 +317,11 @@ int main(int argc, char *argv[]) {
       linktr_ave = link_trace(linktr, &linktr_width,
                               link_det, &det_ave, &det_width);
       node0_printf("BFLINK %d %d", ismear, bl);
-      for (dir = XUP; dir < NUMLINK; dir++)
+      FORALLDIR(dir)
         node0_printf(" %.6g", linktr[dir]);
       node0_printf(" %.6g %.6g\n", linktr_ave, linktr_width);
       node0_printf("BFLINK_DET %d %d", ismear, bl);
-      for (dir = XUP; dir < NUMLINK; dir++)
+      FORALLDIR(dir)
         node0_printf(" %.6g", link_det[dir]);
       node0_printf(" %.6g %.6g\n", det_ave, det_width);
 

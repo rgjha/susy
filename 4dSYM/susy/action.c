@@ -40,10 +40,8 @@ void compute_DmuUmu() {
                                goffset[mu] + 1, EVENANDODD, gen_pt[0]);
     wait_gather(mtag0);
     if (mu == 0) {
-      FORALLSITES(i, s) {
-        sub_matrix(&(tempmat[i]), (matrix *)(gen_pt[0][i]),
-                     &(DmuUmu[i]));   // Initialize
-      }
+      FORALLSITES(i, s)        // Initialize
+        sub_matrix(&(tempmat[i]), (matrix *)(gen_pt[0][i]), &(DmuUmu[i]));
     }
     else {
       FORALLSITES(i, s) {
@@ -67,7 +65,7 @@ void compute_DmuUmu() {
 #ifdef LINEAR_DET
           CMULREAL(tc, G, tc);
           for (j = 0; j < NCOL; j++)
-            CADD(DmuUmu[i].e[j][j], tc, DmuUmu[i].e[j][j]);
+            CSUM(DmuUmu[i].e[j][j], tc);
 #else
           tr = G * cabs_sq(&tc);
           for (j = 0; j < NCOL; j++)
@@ -99,7 +97,7 @@ void compute_DmuUmu() {
 
 // -----------------------------------------------------------------
 // For the gauge action and force, compute at each site
-//   U_mu(x) * U_nu(x + mu) - U_nu(x) * U_mu(x + nu)
+//   U_mu(x) * U_mu(x + mu) - Udag_nu(x) * U_mu(x + nu)
 // Use tempmat and tempmat2 as temporary storage
 void compute_Fmunu() {
   register int i;
@@ -220,7 +218,7 @@ double det_action() {
   double re, im, det_action = 0.0;
 
   FORALLSITES(i, s) {
-    for (a = XUP; a < NUMLINK; a++) {
+    FORALLDIR(a) {
       for (b = a + 1; b < NUMLINK; b++) {
         re = plaqdet[a][b][i].real;
         im = plaqdet[a][b][i].imag;

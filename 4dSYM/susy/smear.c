@@ -73,7 +73,7 @@ void directional_staple(int dir, int dir2) {
   register int i;
   register site *s;
   msg_tag *tag0, *tag1, *tag2;
-  matrix tmat, *mat0, *mat1;
+  matrix tmat;
 
   // Get mom[dir2] from direction dir
   tag0 = start_gather_site(F_OFFSET(mom[dir2]), sizeof(matrix),
@@ -91,10 +91,8 @@ void directional_staple(int dir, int dir2) {
 
   // Finish lower staple after gather is done
   wait_gather(tag0);
-  FORALLSITES(i, s) {
-    mat0 = (matrix *)gen_pt[0][i];
-    mult_nn(&(tempmat2[i]), mat0, &(tempmat[i]));
-  }
+  FORALLSITES(i, s)
+    mult_nn(&(tempmat2[i]), (matrix *)gen_pt[0][i], &(tempmat[i]));
 
   // Gather staple from direction -dir2 to "home" site
   tag2 = start_gather_field(tempmat, sizeof(matrix),
@@ -103,10 +101,8 @@ void directional_staple(int dir, int dir2) {
   // Calculate upper staple, add it
   wait_gather(tag1);
   FORALLSITES(i, s) {
-    mat0 = (matrix *)gen_pt[0][i];
-    mat1 = (matrix *)gen_pt[1][i];
-    mult_nn(&(s->mom[dir2]), mat1, &tmat);
-    mult_na_sum(&tmat, mat0, &(staple[i]));
+    mult_nn(&(s->mom[dir2]), (matrix *)gen_pt[1][i], &tmat);
+    mult_na_sum(&tmat, (matrix *)gen_pt[0][i], &(staple[i]));
   }
 
   // Finally add the lower staple
@@ -133,16 +129,16 @@ void stout_smear(int Nsmear, double alpha) {
   for (n = 0; n < Nsmear; n++) {
     FORALLSITES(i, s) {
       // Unmodified links -- no projection or determinant division
-      for (dir = XUP; dir < NUMLINK; dir++)
+      FORALLDIR(dir)
         mat_copy(&(s->link[dir]), &(s->mom[dir]));
     }
 
-    for (dir = XUP; dir < NUMLINK; dir++) {
+    FORALLDIR(dir) {
       FORALLSITES(i, s)
         clear_mat(&(staple[i]));     // Initialize staple sum
 
       // Accumulate staple sum in staple
-      for (dir2 = XUP; dir2 < NUMLINK; dir2++) {
+      FORALLDIR(dir2) {
         if (dir != dir2)
           directional_staple(dir, dir2);
       }
@@ -173,12 +169,12 @@ void APE_smear(int Nsmear, double alpha, int project) {
   Real tr, tr2;
   matrix tmat, tmat2;
 
-  tr = alpha / (8.0 * (1.0 - alpha));
   tr2 = 1.0 - alpha;
+  tr = alpha / (8.0 * tr2);
 
   for (n = 0; n < Nsmear; n++) {
     FORALLSITES(i, s) {
-      for (dir = XUP; dir < NUMLINK; dir++) {
+      FORALLDIR(dir) {
         // Decide what to do with links before smearing
         // Polar project, divide out determinant, or nothing
         if (project == 1) {
@@ -190,12 +186,12 @@ void APE_smear(int Nsmear, double alpha, int project) {
       }
     }
 
-    for (dir = XUP; dir < NUMLINK; dir++) {
+    FORALLDIR(dir) {
       FORALLSITES(i, s)
         clear_mat(&(staple[i]));     // Initialize staple sum
 
       // Accumulate staple sum in staple
-      for (dir2 = XUP; dir2 < NUMLINK; dir2++) {
+      FORALLDIR(dir2) {
         if (dir != dir2)
           directional_staple(dir, dir2);
       }

@@ -7,10 +7,9 @@
 void blocked_ploop(int Nsmear, int block) {
   register int i;
   register site *s;
-  int j, bl = 2, d[4] = {0, 0, 0, 0};
+  int j, bl = 2, d[NDIMS] = {0, 0, 0, 0};
   complex sum = cmplx(0.0, 0.0), plp;
   msg_tag *tag;
-  matrix *mat;
 
   // Allow sanity check of reproducing ploop() with this routine
   if (block <= 0)
@@ -37,8 +36,7 @@ void blocked_ploop(int Nsmear, int block) {
     FORALLSITES(i, s) {
       if (s->t >= bl)
         continue;
-      mat = (matrix *)gen_pt[0][i];
-      mult_nn(&(tempmat[i]), mat, &(tempmat2[i]));
+      mult_nn(&(tempmat[i]), (matrix *)gen_pt[0][i], &(tempmat2[i]));
       mat_copy(&(tempmat2[i]), &(tempmat[i]));
     }
     cleanup_general_gather(tag);

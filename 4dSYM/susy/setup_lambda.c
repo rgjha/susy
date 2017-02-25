@@ -12,12 +12,6 @@ void setup_lambda() {
   complex inv_sqrt = cmplx(1.0 / sqrt(2.0), 0.0);
   complex i_inv_sqrt = cmplx(0.0, 1.0 / sqrt(2.0));
 
-#ifdef DEBUG_CHECK
-  int a;
-  complex trace, tt;
-  node0_printf("Computing generators for U(N)\n");
-#endif
-
   // Make sure Lambda matrices are initialized
   for (i = 0; i < DIMF; i++)
     clear_mat(&(Lambda[i]));
@@ -70,43 +64,51 @@ void setup_lambda() {
   }
 
 #ifdef DEBUG_CHECK
+  int a;
+  complex tc;
+  matrix tmat;
+
   // Print Lambdas
+  node0_printf("Computing generators for U(N)\n");
   for (i = 0; i < DIMF; i++){
     node0_printf("Lambda[%d]\n",i);
     if (this_node == 0)
       dumpmat(&(Lambda[i]));
   }
 
-  // Test group theory
+  // Test group theory (useful reference: arXiv:1310.5353)
   node0_printf("Check group theory ");
   node0_printf("Sum_a Lambda^a_{kl} Lambda^a_{ij} = -delta_kj delta_il\n");
   for (i = 0; i < NCOL; i++) {
     for (j = 0; j < NCOL; j++) {
       for (k = 0; k < NCOL; k++) {
         for (l = 0; l < NCOL; l++) {
-          trace = cmplx(0, 0);
-          for (a = 0; a < DIMF; a++) {
-            CMUL(Lambda[a].e[k][l], Lambda[a].e[i][j], tt);
-            CSUM(trace, tt);
+          tc.real = Lambda[0].e[k][l].real * Lambda[0].e[i][j].real
+                  - Lambda[0].e[k][l].imag * Lambda[0].e[i][j].imag;
+          tc.imag = Lambda[0].e[k][l].imag * Lambda[0].e[i][j].real
+                  + Lambda[0].e[k][l].real * Lambda[0].e[i][j].imag;
+          for (a = 1; a < DIMF; a++) {
+            tc.real += Lambda[a].e[k][l].real * Lambda[a].e[i][j].real
+                     - Lambda[a].e[k][l].imag * Lambda[a].e[i][j].imag;
+            tc.imag += Lambda[a].e[k][l].imag * Lambda[a].e[i][j].real
+                     + Lambda[a].e[k][l].real * Lambda[a].e[i][j].imag;
           }
-          if (cabs_sq(&trace) > IMAG_TOL)
+          if (cabs_sq(&tc) > IMAG_TOL)
             node0_printf("Sum_a La^a_{%d%d} La^a_{%d%d} = (%.4g, %.4g)\n",
-                         k, j, i, l, trace.real, trace.imag);
+                         k, l, i, j, tc.real, tc.imag);
         }
       }
     }
   }
-#endif
 
-  // Test orthogonality and compute products of Lambdas for fermion forces
-#ifdef DEBUG_CHECK
+  // Test orthogonality of products of Lambdas
   for (i = 0; i < DIMF; i++) {
     for (j = 0; j < DIMF; j++) {
       mult_nn(&(Lambda[i]), &(Lambda[j]), &tmat);
-      trace = trace(&tmat);
-      if (trace.real * trace.real > IMAG_TOL)
+      tc = trace(&tmat);
+      if (tc.real * tc.real > IMAG_TOL)
         node0_printf("Tr[T_%d T_%d] = (%.4g, %.4g)\n",
-                     i, j, trace.real, trace.imag);
+                     i, j, tc.real, tc.imag);
     }
   }
 #endif
@@ -136,11 +138,10 @@ Real order(int i, int j, int k, int l, int m) {
   return (Real)permutation;
 }
 
-
 // Set up translation of (mu, nu) to linear index of anti-symmetric matrix
 void setup_plaq_index() {
   int mu, nu, index;
-  for (mu = 0; mu < NUMLINK; mu++) {
+  FORALLDIR(mu) {
     plaq_index[mu][mu] = -1;
     for (nu = mu + 1; nu < NUMLINK; nu++) {
       index = mu * (NUMLINK - 1) - mu * (mu + 1) / 2 + nu - 1;
@@ -153,28 +154,28 @@ void setup_plaq_index() {
 void epsilon() {
   int i, j, k, l, m;
   setup_plaq_index();
-  for (i = 0; i < NUMLINK; i++) {
-    for (j = 0; j < NUMLINK; j++) {
-      for (k = 0; k < NUMLINK; k++) {
-        for (l = 0; l < NUMLINK; l++) {
-          for (m = 0; m < NUMLINK; m++)
+  FORALLDIR(i) {
+    FORALLDIR(j) {
+      FORALLDIR(k) {
+        FORALLDIR(l) {
+          FORALLDIR(m)
             perm[i][j][k][l][m] = 0;
         }
       }
     }
   }
 
-  for (i = 0; i < NUMLINK; i++) {
-    for (j = 0; j < NUMLINK; j++) {
+  FORALLDIR(i) {
+    FORALLDIR(j) {
       if (j == i)
         continue;
-      for (k = 0; k < NUMLINK; k++) {
+      FORALLDIR(k) {
         if (k == j || k == i)
           continue;
-        for (l = 0; l < NUMLINK; l++) {
+        FORALLDIR(l) {
           if (l == k || l == j || l == i)
             continue;
-          for (m = 0; m < NUMLINK; m++) {
+          FORALLDIR(m) {
             if (m == l || m == k || m == j || m == i)
               continue;
             perm[i][j][k][l][m] = order(i, j, k, l, m);
@@ -200,12 +201,12 @@ void epsilon() {
 // If counter exceeds NTERMS (amount allocated) we have a problem
 void setup_PtoP() {
   int a, b, c, d, e, counter = 0;
-  for (a = 0; a < NUMLINK; a++) {
+  FORALLDIR(a) {
     for (b = a + 1; b < NUMLINK; b++) {
-      for (c = 0; c < NUMLINK; c++) {
+      FORALLDIR(c) {
         if (c == a || c == b)
           continue;
-        for (d = 0; d < NUMLINK; d++) {
+        FORALLDIR(d) {
           if (d == c || d == a || d == b)
             continue;
           for (e = d + 1; e < NUMLINK; e++) {
@@ -228,12 +229,12 @@ void setup_PtoP() {
   }
 
   counter = 0;
-  for (d = 0; d < NUMLINK; d++) {
+  FORALLDIR(d) {
     for (e = d + 1; e < NUMLINK; e++) {
-      for (c = 0; c < NUMLINK; c++) {
+      FORALLDIR(c) {
         if (c == d || c == e)
           continue;
-        for (a = 0; a < NUMLINK; a++) {
+        FORALLDIR(a) {
           if (a == c || a == d || a == e)
             continue;
           for (b = a + 1; b < NUMLINK; b++) {
@@ -265,14 +266,14 @@ void setup_PtoP() {
 // If counter exceeds NTERMS (amount allocated) we have a problem
 void setup_FQ() {
   int a, b, c, d, e, counter = 0;
-  for (c = 0; c < NUMLINK; c++) {
-    for (d = 0; d < NUMLINK; d++) {
+  FORALLDIR(c) {
+    FORALLDIR(d) {
       if (d == c)
         continue;
       for (e = d + 1; e < NUMLINK; e++) {
         if (e == c)
           continue;
-        for (a = 0; a < NUMLINK; a++) {
+        FORALLDIR(a) {
           if (a == d || a == e || a == c)
             continue;
           for (b = a + 1; b < NUMLINK; b++) {

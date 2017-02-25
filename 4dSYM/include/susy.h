@@ -1,10 +1,8 @@
 // -----------------------------------------------------------------
 // Defines and subroutine declarations for N=4 SYM with gauge group U(NCOL)
 // and fermions in the DIMF-dimensional adjoint rep
-// The original names now refer to objects of dimension DIMF or DIMFxDIMF
-// New objects with suffix _f have dimension NCOL or NCOLxNCOL
-#ifndef _SUN_H
-#define _SUN_H
+#ifndef _SUSY_H
+#define _SUSY_H
 
 #include "../include/complex.h"
 #include "../include/random.h"
@@ -14,7 +12,7 @@
 
 // -----------------------------------------------------------------
 // N=4 SYM fermions always in adjoint rep
-// Gauge group SU(NCOL) and size of adjoint rep DIMF = NCOL^2 - 1
+// Gauge group U(NCOL) and size of adjoint rep DIMF = NCOL^2
 #define NCOL 2
 #define DIMF 4
 
@@ -53,8 +51,8 @@ typedef struct {
 // Need SU(2) matrices for any U(N), e.g. for gauge hits when gauge-fixing
 typedef struct { complex e[2][2]; } su2_matrix;
 
-#define GAMMAFIVE -1    // Some integer which is not a direction
-#define PLUS 1          // Flags for selecting M or M_adjoint
+// Flags for selecting M or M_adjoint
+#define PLUS 1
 #define MINUS -1
 // -----------------------------------------------------------------
 
@@ -89,10 +87,10 @@ complex complextrace_nn(matrix *a, matrix *b);
 complex complextrace_an(matrix *a, matrix *b);
 complex complextrace_na(matrix *a, matrix *b);
 
-// b <-- a, in file mat_copy.c
+// In file mat_copy.c
 void mat_copy(matrix *a, matrix *b);
 
-// b <-- (+/-)adag, in file adjoint.c
+// In file adjoint.c
 void adjoint(matrix *a, matrix *b);
 void neg_adjoint(matrix *a, matrix *b);
 
@@ -166,17 +164,17 @@ void mult_an_sum(matrix *a, matrix *b, matrix *c);
 void mult_an_dif(matrix *a, matrix *b, matrix *c);
 void mult_an(matrix *a, matrix *b, matrix *c);
 
-// c <-- s * a * b, in file s_m_mat_nn.c
+// In file s_m_mat_nn.c
 void scalar_mult_nn_sum(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_nn_dif(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_nn(matrix *a, matrix *b, Real s, matrix *c);
 
-// c <-- s * a * bdag, in file s_m_mat_na.c
+// In file s_m_mat_na.c
 void scalar_mult_na_sum(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_na_dif(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_na(matrix *a, matrix *b, Real s, matrix *c);
 
-// c <-- s * adag * b, in file s_m_mat_an.c
+// In file s_m_mat_an.c
 void scalar_mult_an_sum(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_an_dif(matrix *a, matrix *b, Real s, matrix *c);
 void scalar_mult_an(matrix *a, matrix *b, Real s, matrix *c);
@@ -229,6 +227,10 @@ void mult_su2_mat_vec_elem_a(su2_matrix *u, complex *x0, complex *x1);
 // In file gaussrand.c
 Real gaussian_rand_no(double_prn *prn_pt);
 
+// In file z2rand.c
+Real Z2_rand_no(double_prn *prn_pt);
+
+// In file byterevn.c
 #include "../include/int32type.h"
 void byterevn(int32type w[], int n);
 void byterevn64(int32type w[], int n);

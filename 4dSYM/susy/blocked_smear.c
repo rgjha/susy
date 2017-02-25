@@ -18,7 +18,7 @@ void blocked_staple(int stride, int dir, int dir2) {
   register int i;
   register site *s;
   int j;
-  matrix tmat, tmat2;
+  matrix tmat;
 
   // Copy links to tempmat and tempmat2 to be shifted
   FORALLSITES(i, s) {
@@ -71,16 +71,16 @@ void blocked_stout(int Nsmear, double alpha, int bl) {
   for (n = 0; n < Nsmear; n++) {
     FORALLSITES(i, s) {
       // Unmodified links -- no projection or determinant division
-      for (dir = XUP; dir < NUMLINK; dir++)
+      FORALLDIR(dir)
         mat_copy(&(s->link[dir]), &(s->mom[dir]));
     }
 
-    for (dir = XUP; dir < NUMLINK; dir++) {
+    FORALLDIR(dir) {
       FORALLSITES(i, s)
         clear_mat(&(staple[i]));     // Initialize staple sum
 
       // Accumulate staple sum in staple
-      for (dir2 = XUP; dir2 < NUMLINK; dir2++) {
+      FORALLDIR(dir2) {
         if (dir != dir2)
           blocked_staple(stride, dir, dir2);
       }
@@ -113,8 +113,8 @@ void blocked_APE(int Nsmear, double alpha, int project, int bl) {
   Real tr, tr2;
   matrix tmat, tmat2;
 
-  tr = alpha / (8.0 * (1.0 - alpha));
   tr2 = 1.0 - alpha;
+  tr = alpha / (8.0 * tr2);
 
   // Set number of links to stride, 2^bl
   for (j = 0; j < bl; j++)
@@ -122,7 +122,7 @@ void blocked_APE(int Nsmear, double alpha, int project, int bl) {
 
   for (n = 0; n < Nsmear; n++) {
     FORALLSITES(i, s) {
-      for (dir = XUP; dir < NUMLINK; dir++) {
+      FORALLDIR(dir) {
         // Decide what to do with links before smearing
         // Polar project, divide out determinant, or nothing
         if (project == 1) {
@@ -134,12 +134,12 @@ void blocked_APE(int Nsmear, double alpha, int project, int bl) {
       }
     }
 
-    for (dir = XUP; dir < NUMLINK; dir++) {
+    FORALLDIR(dir) {
       FORALLSITES(i, s)
         clear_mat(&(staple[i]));     // Initialize staple sum
 
       // Accumulate staple sum in staple
-      for (dir2 = XUP; dir2 < NUMLINK; dir2++) {
+      FORALLDIR(dir2) {
         if (dir != dir2)
           blocked_staple(stride, dir, dir2);
       }

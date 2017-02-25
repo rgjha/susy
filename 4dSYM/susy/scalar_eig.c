@@ -20,8 +20,7 @@ void scalar_eig(int project, double *ave_eigs, double *eig_widths,
   char U = 'U';     // Have LAPACK store upper triangle of U.Ubar
   int row, col, Npt = NCOL, stat = 0, Nwork = 2 * NCOL, j;
   Real tr;
-  double *store, *work, *Rwork, *eigs, norm = NUMLINK * volume;
-  double *sq_eigs = malloc(NCOL * sizeof(*sq_eigs));
+  double norm = NUMLINK * volume, sq_eigs[NCOL];
   complex tc;
   matrix USq, tmat;
 
@@ -33,12 +32,6 @@ void scalar_eig(int project, double *ave_eigs, double *eig_widths,
   }
 #endif
 
-  // Allocate double arrays to be used by LAPACK
-  store = malloc(2 * NCOL * NCOL * sizeof(*store));
-  work = malloc(2 * Nwork * sizeof(*work));
-  Rwork = malloc((3 * NCOL - 2) * sizeof(*Rwork));
-  eigs = malloc(NCOL * sizeof(*eigs));
-
   // Initialize averages and extrema
   for (j = 0; j < NCOL; j++) {
     ave_eigs[j] = 0.0;
@@ -48,7 +41,7 @@ void scalar_eig(int project, double *ave_eigs, double *eig_widths,
   }
 
   FORALLSITES(i, s) {
-    for (dir = XUP; dir < NUMLINK; dir++) {
+    FORALLDIR(dir) {
       if (project == 1) {   // Consider polar-projected scalar fields
         polar(&(s->link[dir]), &USq, &tmat);
         // Take log
@@ -119,12 +112,5 @@ void scalar_eig(int project, double *ave_eigs, double *eig_widths,
     g_doublemax(&(min_eigs[j]));
     min_eigs[j] = -min_eigs[j];
   }
-
-  // Free double arrays used by LAPACK
-  free(store);
-  free(work);
-  free(Rwork);
-  free(eigs);
-  free(sq_eigs);
 }
 // -----------------------------------------------------------------

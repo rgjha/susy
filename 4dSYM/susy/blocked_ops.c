@@ -19,12 +19,12 @@ void blocked_ops(int Nsmear, int block) {
 
   // Now sum operators over lattice volume
   FORALLSITES(i, s) {
-    for (a = 0; a < NUMLINK; a++) {
+    FORALLDIR(a) {
       for (j = 0; j < N_K; j++) {
         OK[j] += traceBB[j][a][a][i];   // Konishi
 
         // Now SUGRA, averaged over 20 off-diagonal components
-        for (b = 0; b < NUMLINK; b++) {
+        FORALLDIR(b) {
           if (a == b)
             continue;
           OS[j] += 0.05 * traceBB[j][a][b][i];
@@ -39,7 +39,7 @@ void blocked_ops(int Nsmear, int block) {
 
   // Print each operator summed over volume
   // Have to divide by number of blocked lattices: 2^(4block) = bl^4
-  // Format: TAG  smearing  block  a  op[a]  subtracted[a]
+  // Format: TAG  smearing  block  a  op[a]
   for (j = 1; j < block; j++)
     bl *= 2;
   if (block <= 0)

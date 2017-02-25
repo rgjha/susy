@@ -3,7 +3,8 @@
 // Loop over directions up to NUMLINK and do not reunitarize
 #include "generic_includes.h"
 #include "../include/io_lat.h"
-#include "../susy/susy_includes.h"    // For plaquette
+
+void plaquette(double *ss_plaq, double *st_plaq);
 // -----------------------------------------------------------------
 
 
@@ -79,12 +80,12 @@ void funnylat() {
   register site *s;
 
   FORALLSITES(i, s) {
-    for (dir = XUP; dir <= TUP; dir++) {
-      s->link[dir].e[0][0] = cmplx((double)dir, (double)dir);
-      for (j = 1; j < NCOL; ++j) {
-        for (k = 1; k < NCOL; ++k)
+    FORALLDIR(dir) {
+      for (j = 0; j < NCOL; ++j) {
+        for (k = 0; k < NCOL; ++k)
           s->link[dir].e[j][k] = cmplx(10.0 * j * s->x, 10.0 * k * s->z);
       }
+      s->link[dir].e[0][0] = cmplx((double)dir, (double)dir);
     }
   }
 }

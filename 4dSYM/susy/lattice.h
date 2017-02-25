@@ -66,7 +66,6 @@ typedef struct {
 #define EXTERN extern
 #endif
 
-// Global variables
 EXTERN int nx, ny, nz, nt;  // Lattice dimensions
 EXTERN int PBC;             // Temporal fermion boundary condition
 EXTERN int volume;          // Volume of lattice
@@ -81,8 +80,7 @@ EXTERN Real perm[NUMLINK][NUMLINK][NUMLINK][NUMLINK][NUMLINK];
 // Translate (mu, nu) to linear index of anti-symmetric matrix
 EXTERN int plaq_index[NUMLINK][NUMLINK];
 
-EXTERN Real rsqmin, rsqprop;
-EXTERN Real lambda, kappa, bmass, fmass, kappa_u1, G, B;
+EXTERN Real rsqmin, lambda, kappa, bmass, fmass, kappa_u1, G, B;
 EXTERN int doG, doB;
 EXTERN double g_ssplaq, g_stplaq;   // Global plaqs for I/O
 EXTERN double_complex linktrsum;
@@ -148,6 +146,9 @@ EXTERN complex *tempZW[NUMLINK][NUMLINK];
 EXTERN matrix *DmuUmu, *Fmunu[NPLAQ];
 EXTERN matrix *Uinv[NUMLINK], *Udag_inv[NUMLINK], *UpsiU[NUMLINK];
 
+// CG Twist_Fermions
+EXTERN Twist_Fermion *mpm, *pm0, *rm;
+
 // Temporary matrices and Twist_Fermion
 EXTERN matrix *tempmat, *tempmat2, *staple;
 EXTERN Twist_Fermion *tempTF;
@@ -155,6 +156,9 @@ EXTERN Twist_Fermion *tempTF;
 // Arrays to be used by LAPACK in determinant.c
 EXTERN int *ipiv;
 EXTERN double *store, *work;
+
+// Allocate some more arrays to be used by LAPACK in unit.c
+EXTERN double *Rwork, *eigs;
 
 EXTERN gauge_file *startlat_p;
 EXTERN gauge_file *savelat_p;
@@ -176,22 +180,15 @@ EXTERN char **gen_pt[N_POINTERS];
 EXTERN matrix *Ba[N_B][NUMLINK];
 EXTERN double *traceBB[N_K][NUMLINK][NUMLINK];
 
-// Ensemble averages and volume averages for subtracting
-EXTERN double vevK[N_K], vevS[N_K], volK[N_K], volS[N_K];
-
-// Structs for operators and correlators with either subtraction
+// Structs for operators and correlators
 typedef struct {
-  double OK[N_K][2];
-  double OS[N_K][2];
+  double OK[N_K];
+  double OS[N_K];
 } Kops;
 typedef struct {
-  double C[N_K][N_K][2];
+  double C[N_K][N_K];
 } Kcorrs;
 EXTERN Kops *tempops, *tempops2;
-#endif
-
-#ifdef BILIN
-EXTERN int nsrc;
 #endif
 
 #ifdef SMEAR
@@ -200,6 +197,10 @@ EXTERN int smearflag;                 // NONE, STOUT, APE
 EXTERN int Nsmear;
 EXTERN double alpha;
 EXTERN anti_hermitmat *Q[NUMLINK];    // To be exponentiated
+#endif
+
+#ifdef BILIN
+EXTERN int nsrc;
 #endif
 
 #ifdef EIG
@@ -212,24 +213,42 @@ EXTERN Real eig_tol;          // Tolerance for the eigenvalue computation
 EXTERN int maxIter;           // Maximum iterations
 #endif
 
-#ifdef PHASE
-// Pfaffian phase stuff
-EXTERN Twist_Fermion *src, *res;    // For fieldwise matvec
-EXTERN long int Nmatvecs;           // For timing/counting
-EXTERN int ckpt_load, ckpt_save;    // For checkpointing
+#ifdef CHEB
+// Chebyshev spectral density stuff
+EXTERN int Nstoch, sqrtN_ov_Nm1;      // Number of stochastic sources
+EXTERN Twist_Fermion *z_rand;         // Z2 random Twist_Fermion
+
+EXTERN int cheb_order;                // Number of coefficients to compute
+EXTERN Real *cheb_coeff, *cheb_err;   // Results for coefficients
+EXTERN Real lambda_min, lambda_max;   // Bounds on spectral range
 #endif
 
 #ifdef MODE
-// Mode number (and associated step function) stuff
-EXTERN int Npts;
-EXTERN Real M, spacing;
-EXTERN Twist_Fermion **source;
+// Giusti--Luescher mode number and step function stuff
+EXTERN int Nstoch, sqrtN_ov_Nm1;      // Number of stochastic sources
+EXTERN Twist_Fermion *z_rand;         // Z2 random Twist_Fermion
 
-EXTERN int step_order;  // Selects between options hard-coded in coeffs.c
-EXTERN double eps;
-EXTERN double delta;    // Unused, but may be useful to record in the output
-EXTERN double starSq, star;     // Ratio (Omega / Omega_*)^2 and its sqrt
-EXTERN double *coeffs;
+EXTERN int step_order;            // Selects between options in mode_coeffs.c
+EXTERN int numOmega;              // Number of Omega at which to evaluate nu
+EXTERN Real *Omega;               // List of Omega at which to evaluate nu
+EXTERN Real OmStar;               // Scaled Omega / star given to CG
+
+EXTERN Real step_eps;             // Epsilon of step function approximation
+EXTERN Real delta;                // Just recorded in the output
+EXTERN Real starSq, star;         // Ratio (Omega / Omega_*)^2 and its sqrt
+EXTERN double *step_coeff;        // Options hard-coded in mode_coeffs.c
+EXTERN double *mode, *err;        // Results for mode number
+
+// Z2 stochastic sources and temporary storage
+EXTERN Twist_Fermion **source, *XPXSq, *hX, *dest;
+EXTERN Twist_Fermion *bj, *bjp1;  // More temporaries for Clenshaw algorithm
+#endif
+
+#ifdef PHASE
+// Pfaffian phase stuff
+EXTERN long int Nmatvecs;           // For timing/counting
+EXTERN int ckpt_load, ckpt_save;    // For checkpointing
+EXTERN Twist_Fermion *src, *res;    // For fieldwise matvec
 #endif
 
 #endif // _LATTICE_H

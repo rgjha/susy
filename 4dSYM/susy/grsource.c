@@ -7,31 +7,6 @@
 
 
 // -----------------------------------------------------------------
-// Remove the trace of the given Twist_Fermion
-void TF_trace_sub(Twist_Fermion *a) {
-  register int i;
-  complex sum, tc;
-
-  tc = trace(&(a->Fsite));
-  CMULREAL(tc, -1.0 * one_ov_N, tc);
-  c_scalar_add_diag(&(a->Fsite), &tc);
-
-  FORALLDIR(i) {
-    tc = trace(&(a->Flink[i]));
-    CMULREAL(tc, -1.0 * one_ov_N, tc);
-    c_scalar_add_diag(&(a->Flink[i]), &tc);
-  }
-  for (i = 0; i < NPLAQ; i++) {
-    tc = trace(&(a->Fplaq[i]));
-    CMULREAL(tc, -1.0 * one_ov_N, tc);
-    c_scalar_add_diag(&(a->Fplaq[i]), &tc);
-  }
-}
-// -----------------------------------------------------------------
-
-
-
-// -----------------------------------------------------------------
 // Construct gaussian random momentum matrices
 // as sum of U(N) generators with gaussian random coefficients
 void ranmom() {
@@ -71,7 +46,7 @@ int grsource(Twist_Fermion *src) {
   complex grn;
   Twist_Fermion **psim = malloc(Norder * sizeof(**psim));
 
-  // Allocate psim (will be zeroed in congrad_multi_field)
+  // Allocate psim (will be zeroed in congrad_multi)
   for (i = 0; i < Norder; i++)
     psim[i] = malloc(sites_on_node * sizeof(Twist_Fermion));
 
@@ -152,7 +127,7 @@ int grsource(Twist_Fermion *src) {
   for (i = 0; i < Norder; i++)
     shift[i] = shift8[i];
 
-  avs_iters = congrad_multi_field(src, psim, niter, rsqmin, &size_r);
+  avs_iters = congrad_multi(src, psim, niter, rsqmin, &size_r);
 #ifdef DEBUG_CHECK
   node0_printf("Iters for source %d\n", avs_iters);
 #endif

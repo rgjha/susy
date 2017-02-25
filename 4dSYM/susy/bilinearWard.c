@@ -130,9 +130,9 @@ int bilinearWard() {
   for (isrc = 0; isrc < nsrc; isrc++) {
     // Make random source g_rand, now including trace piece
     // Hit it with Mdag to get src, invert to get M^{-1} g_rand
-    // congrad_multi_field initializes psim
+    // congrad_multi initializes psim
     bilinear_src(g_rand, src, DIMF);
-    iters = congrad_multi_field(src, psim, niter, rsqmin, &size_r);
+    iters = congrad_multi(src, psim, niter, rsqmin, &size_r);
     tot_iters += iters;
 #ifdef DEBUG_CHECK
     dump_TF(&(psim[0][10]));    // Check what components are non-zero
@@ -178,7 +178,7 @@ int bilinearWard() {
 
   // Now add gauge piece, including plaquette determinant term
   // Accumulate sum_a U_a Udag_a in tmat
-  // Multiply by DmuUmu into tmat and trace
+  // Multiply by DmuUmu and trace
   FORALLSITES(i, s) {
     mult_na(&(s->link[0]), &(s->link[0]), &tmat);   // Initialize
     for (mu = 1; mu < NUMLINK; mu++)
